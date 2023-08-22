@@ -1,0 +1,432 @@
+package mod
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/binary"
+	"encoding/csv"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"main/alert"
+	"mime/multipart"
+	"net/http"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/xuri/excelize/v2"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"gorm.io/gorm"
+)
+
+//将GBK编码的字符串转换为utf-8编码
+func ConvertGBK2Str(gbkStr string) string {
+	//如果是[]byte格式的字符串，可以使用Bytes方法
+	b, err := simplifiedchinese.GBK.NewDecoder().String(gbkStr)
+	if err != nil {
+		return b //如果转换失败返回空字符串
+	}
+	return b
+}
+
+func preNUm(data byte) int {
+	var mask byte = 0x80
+	var num int = 0
+	//8bit中首个0bit前有多少个1bits
+	for i := 0; i < 8; i++ {
+		if (data & mask) == mask {
+			num++
+			mask = mask >> 1
+		} else {
+			break
+		}
+	}
+	return num
+}
+func isUtf8(data []byte) bool {
+	i := 0
+	for i < len(data) {
+		if (data[i] & 0x80) == 0x00 {
+			// 0XXX_XXXX
+			i++
+			continue
+		} else if num := preNUm(data[i]); num > 2 {
+			// 110X_XXXX 10XX_XXXX
+			// 1110_XXXX 10XX_XXXX 10XX_XXXX
+			// 1111_0XXX 10XX_XXXX 10XX_XXXX 10XX_XXXX
+			// 1111_10XX 10XX_XXXX 10XX_XXXX 10XX_XXXX 10XX_XXXX
+			// 1111_110X 10XX_XXXX 10XX_XXXX 10XX_XXXX 10XX_XXXX 10XX_XXXX
+			// preNUm() 返回首个字节的8个bits中首个0bit前面1bit的个数，该数量也是该字符所使用的字节数
+			i++
+			for j := 0; j < num-1; j++ {
+				//判断后面的 num - 1 个字节是不是都是10开头
+				if (data[i] & 0xc0) != 0x80 {
+					return false
+				}
+				i++
+			}
+		} else {
+			//其他情况说明不是utf-8
+			return false
+		}
+	}
+	return true
+}
+
+/*预处理从不同文件读入的波形数据*/
+func TypeRead(ftype string, src multipart.File) (info string, data []byte, err error) {
+	if ftype == "txt" {
+		return ReadTXTfile(src)
+	} else if ftype == "csv" {
+		return ReadCSVfile(src)
+	} else {
+		return ReadEXCELfile(src)
+	}
+}
+
+// 从excel xlsx读入
+func ReadEXCELfile(file multipart.File) (info string, data []byte, err error) {
+	reader, err := excelize.OpenReader(file)
+	if err != nil {
+		return info, nil, err
+	}
+	rows, err := reader.GetRows(reader.GetSheetName(0))
+	if err != nil {
+		return info, nil, err
+	}
+	info = rows[0][0]
+	var buffer bytes.Buffer
+	for k, v := range rows {
+		if k > 0 {
+			bdata := []byte(strings.TrimRight(v[0], "0") + " ")
+			buffer.Write(bdata)
+		}
+	}
+	return info, buffer.Bytes(), nil
+}
+
+//从csv读入
+func ReadCSVfile(file multipart.File) (info string, data []byte, err error) {
+	reader := csv.NewReader(file)
+	reader.LazyQuotes = true
+	infor, err := reader.Read()
+	if len(infor) == 0 {
+		return info, nil, errors.New("无数据信息。")
+	}
+	if isUtf8([]byte(infor[0])) {
+		info = strings.TrimSpace(infor[0])
+	} else {
+		info = strings.TrimSpace(ConvertGBK2Str(infor[0]))
+	}
+	if err != nil {
+		return info, nil, err
+	}
+	var buffer bytes.Buffer
+	for {
+		csvdata, err := reader.Read() // 按行读取数据,可控制读取部分
+		if err == io.EOF {
+			break
+		}
+		bdata := []byte(strings.TrimRight(csvdata[0], "0") + " ")
+		buffer.Write(bdata)
+	}
+
+	return info, buffer.Bytes(), nil
+}
+
+// 从txt读取数据，其中数据按空格分开（按文件的约定）
+func ReadTXTfile(file multipart.File) (info string, data []byte, err error) {
+	reader := bufio.NewReader(file)
+	info, err = reader.ReadString('\n')
+	//编码转换
+	if isUtf8([]byte(info)) {
+		info = strings.TrimSpace(info)
+	} else {
+		info = strings.TrimSpace(ConvertGBK2Str(info))
+	}
+
+	if err != nil {
+		return info, nil, err
+	}
+
+	//* 处理数据位数，依次写进buffer，最后存进数据库
+	var buffer bytes.Buffer
+	for {
+		strTmp, err := reader.ReadString(' ')
+		if err != nil {
+			if err == io.EOF {
+				strTmp = strings.TrimRight(strTmp, " ")
+				strTmp = strings.TrimRight(strTmp, "0")
+				buffer.Write([]byte(strTmp + " "))
+				break
+			}
+			break
+		}
+		strTmp = strings.TrimRight(strTmp, " ")
+		strTmp = strings.TrimRight(strTmp, "0")
+		buffer.Write([]byte(strTmp + " "))
+	}
+	return info, buffer.Bytes(), err
+}
+
+//* 解析数据描述信息，将数据信息和数据存入数据库
+//* 数据格式：大唐江西太阳山风电场（0风场名）_风机#01（1风机名）_齿轮箱低速轴（2#测点）_径向（3#测点方向）_32.768K（4#数据长度）_25600HZ（5#采样频率）_Timewave（6#数据类型）_加速度（7#测量参数）_1RPM（#测量转速）_20220101201122（#测量时间年月日时分秒）
+func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte) error {
+	var err error
+	str := strings.Split(info, "_")
+	if len(str) != 10 {
+		err = errors.New("the format of file first line is wrong. ")
+		return err
+	}
+	wname := str[0]
+	mname := str[1]
+	ppname := str[2]
+	pdirection := str[3]
+	//根据文件名找到测点id并关联
+	var goalpoint Point
+	err = db.Table("windfarm").
+		Joins("join machine on windfarm.uuid = machine.windfarm_uuid").
+		Joins("join part on machine.uuid = part.machine_uuid").
+		Joins("join point on part.uuid = point.part_uuid").
+		Where("windfarm.name = ?", wname).
+		Where("machine.name = ?", mname).
+		Where("point.name = ? AND point.direction =?", ppname, pdirection).
+		Select("point.ID AS ID", "point.name AS name").
+		First(&goalpoint).Error
+	if err != nil {
+		err = errors.New("point missing." + err.Error())
+		return err
+	}
+	var pointid uint = goalpoint.ID
+	dd.PointID = goalpoint.ID
+	//uuid
+	var p Point
+	err = db.Table("point").Where("id=?", pointid).Select("uuid").First(&p).Error
+	if err != nil {
+		return err
+	}
+	dd.PointUUID = p.UUID
+	dd.Filepath = info
+	dd.Length = strings.ToUpper(str[4])
+	// freq, err := strconv.ParseFloat(strings.Trim(strings.ToUpper(str[5]), "HZ"), 32)
+	freq, err := strconv.Atoi(strings.Split(strings.Trim(strings.ToUpper(str[5]), "HZ"), ".")[0])
+	if err != nil {
+		return errors.New("频率格式错误" + err.Error())
+	}
+	dd.SampleFreq = freq
+	dd.Datatype = strings.ToUpper(str[6])
+	dd.Measuredefine = str[7]
+	rpm, err := strconv.ParseFloat(strings.Trim(str[8], "RPM"), 32)
+	if err != nil {
+		return errors.New("转速格式错误")
+	}
+	dd.Rpm = float32(rpm)
+	if len([]rune(str[9])) != 14 {
+		return errors.New("时间格式错误，应包含年月日时分秒14位数。")
+	}
+
+	ddtime, err := time.ParseInLocation("20060102150405", str[9], time.Local)
+	if err != nil {
+		return err
+	}
+	dd.Time = ddtime.Format("2006-01-02 15:04:05")
+	dd.TimeSet = ddtime.Unix()
+	//数据解析到float32
+	dd.Wave.File = filedata
+	var originy []float32 = make([]float32, 0)
+	origin := strings.Trim(string(dd.Wave.File), " ")
+	onum := strings.Split(origin, " ")
+	for _, v := range onum {
+		temp, _ := strconv.ParseFloat(v, 32)
+		originy = append(originy, float32(temp))
+	}
+	dd.Wave.DataFloat, err = Encode(originy)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// * 调用分析算法exe  windows
+
+func (dbconfig *GormConfig) DataAnalysis(path string, arg ...string) ([]string, error) {
+	//分析
+	// cmd := exec.Command(path, dbconfig.Addr, dbconfig.Admin, dbconfig.Password, dbconfig.Schema, dbconfig.Port,datatable, resulttable, dataid, arg, shmname)
+	arg2 := []string{dbconfig.Addr, dbconfig.Admin, dbconfig.Password, dbconfig.Schema, dbconfig.Port}
+	arg2 = append(arg2, arg...)
+	cmd := exec.Command(path, arg2...)
+
+	var str []string
+	buf, err := cmd.Output()
+	//两种系统换行处理
+	message := strings.Replace(strings.Trim(string(buf), "\r\n"), "\r\n", "\n", -1)
+	messages := strings.Split(message, "\n")
+	//按行读取bufstring 最后一行为succeed即为成功，否则为失败
+	if messages[len(messages)-1] == "succeed" {
+		return messages, nil
+	}
+	return str, err
+}
+
+//数据服务获取时频分析数据并存到数据库
+func (data *Data) DataAnalysis_2(db *gorm.DB, ipport string, fid string) (err error) {
+	ourl := "http://" + ipport + "/api/v1/data/trans/"
+	var originy []float32 = make([]float32, len(data.Wave.DataFloat)/4)
+	err = Decode(data.Wave.DataFloat, &originy)
+	if err != nil {
+		return err
+	}
+	var url string = ourl + "4"
+	type DataPost4 struct {
+		Datafloat []float32 `json:"data"`
+		Freq      int       `json:"fs"`
+		BV1       string    `json:"bv1,omitempty"` //格式：最小值 最大值。中间空格隔开，如：0 100
+		BV2       string    `json:"bv2,omitempty"`
+		BV3       string    `json:"bv3,omitempty"`
+		BV4       string    `json:"bv4,omitempty"`
+		BV5       string    `json:"bv5,omitempty"`
+		BV6       string    `json:"bv6,omitempty"`
+		Databack  []float32 `json:"result"`
+		Result
+		Code    int    `json:"code"`
+		Message string `json:"message,omitempty"`
+	}
+	postData := DataPost4{
+		Datafloat: originy,
+		Freq:      data.SampleFreq,
+		BV1:       data.BandValue1,
+		BV2:       data.BandValue2,
+		BV3:       data.BandValue3,
+		BV4:       data.BandValue4,
+		BV5:       data.BandValue5,
+		BV6:       data.BandValue6,
+	}
+	postBody, err := json.Marshal(postData)
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postBody))
+	if err != nil {
+		return err
+	}
+	// 读取响应内容
+	defer resp.Body.Close()
+	err = json.NewDecoder(resp.Body).Decode(&postData)
+	if err != nil {
+		return err
+	}
+	if postData.Code != 200 {
+		return errors.New("数据分析服务错误" + postData.Message)
+	}
+	if len(postData.Databack) == 0 {
+		return errors.New("无数据返回")
+	}
+	data.Wave.SpectrumFloat, err = Encode(postData.Databack)
+	data.Result = postData.Result
+	if err != nil {
+		return err
+	}
+	return
+}
+
+// func AlertSearch(db *gorm.DB, ppmwcid []string, pointuuid string, measuredefine string) ([]alert.Band, error) {
+// 	//频带查询
+// 	var bband []alert.Band
+// 	err := db.Transaction(func(tx *gorm.DB) error {
+// 		//获取警报版本 测点信息和部件类型
+// 		var parttype string //部件名称
+// 		//如果有type字段
+// 		if err := tx.Table("part").Where("id=?", ppmwcid[1]).Select("name").Scan(&parttype).Error; err != nil {
+// 			return err
+// 		}
+// 		//从警报标准表获取标准值
+// 		if err := tx.Table("band").Where("type=? AND value=?", parttype, measuredefine).
+// 			Find(&bband).Error; err != nil {
+// 			return err
+// 		}
+// 		return nil
+// 	})
+// 	return bband, err
+// }
+func AlertSearch(db *gorm.DB, ppmwcid []string, pointuuid string, measuredefine string) ([]alert.Band, error) {
+	//频带查询
+	var bband []alert.Band
+	var bbandpoint []alert.Band //测点的频带报警
+	var bbandpart []alert.Band  //部件的频带报警
+	err := db.Transaction(func(tx *gorm.DB) error {
+		//获取警报版本 测点信息和部件类型
+		var partuuid string //部件名称
+		//从警报标准表获取标准值
+		tx.Table("part").
+			Joins("join point on part.uuid=point.part_uuid").
+			Where("point.uuid=?", pointuuid).
+			Pluck("part.uuid", &partuuid)
+		if err := tx.Table("band").
+			Where("point_uuid=? AND value=?", pointuuid, measuredefine).
+			Find(&bbandpoint).Error; err != nil {
+			return err
+		}
+		//每个point band判断有无重复的part band，记录id。再查询part band，排除这些id。
+		var outids []uint = []uint{0}
+		for k := range bbandpoint {
+			var outid uint
+			tx.Table("band").
+				Where("part_uuid =?", partuuid).
+				Where("value =? AND band_range =? AND property =?", measuredefine, bbandpoint[k].Range, bbandpoint[k].Property).
+				Pluck("id", &outid)
+			if outid != 0 {
+				outids = append(outids, outid)
+			}
+		}
+		if err := tx.Table("band").Where("part_uuid=? AND value=?", partuuid, measuredefine).
+			Where("id NOT IN ?", outids).
+			Find(&bbandpart).Error; err != nil {
+			return err
+		}
+		bband = append(bbandpoint, bbandpart...)
+		return nil
+	})
+	return bband, err
+}
+func BandUpdate(db *gorm.DB, pdata *Data, bband []alert.Band) {
+	//将频带更新至data
+	databv := make(map[string]string)
+	for k, v := range bband {
+		vr := strings.Split(v.Range, " ")
+		if len(vr) == 2 {
+			var newrange string
+			vr1, _ := strconv.Atoi(vr[1])
+			if vr1 < pdata.SampleFreq/2 { //! 频带右<1/2采样频率 否则频带右=采样频率/2
+				newrange = v.Range
+			} else {
+				newrange = vr[0] + " " + strconv.FormatFloat(float64(pdata.SampleFreq)/2, 'f', 1, 64)
+			}
+			//TODO 解析到对应结构体
+			databv[fmt.Sprintf("bv%v", k+1)] = newrange
+		}
+
+	}
+	// var edata Data
+	MaptoStruct(databv, pdata)
+}
+
+//*  to byte编码
+func Encode(src interface{}) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, src); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+//*  to byte解码，定义时候需先确定长度
+func Decode(b []byte, dst interface{}) error {
+	buf := bytes.NewBuffer(b)
+	if err := binary.Read(buf, binary.LittleEndian, dst); err != nil {
+		return err
+	}
+	return nil
+}

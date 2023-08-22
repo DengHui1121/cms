@@ -1,0 +1,249 @@
+
+version= "1.1"
+type = "主轴承"
+name = "轴承外圈"
+#故障树的故障描述
+desc = "主轴承 故障树报警"
+suggest = "检修"
+
+[[stages]]
+name="滚动轴承外圈故障第一阶段"
+[[stages.calculate]]
+value1 =1.0
+goal1 = "rms_band(10,2000)"
+lower = -inf
+upper= 7.5
+[[stages.calculate]]
+value1 =1.0
+goal1 = "indexkur"
+lower = -inf
+upper= 1.0
+#故障树的故障描述
+desc = "故障第一阶段"
+suggest = "检修"
+
+[[stages]]
+name="滚动轴承外圈故障第二阶段"
+[[stages.calculate]]
+value1 =1.0
+goal1= "rms_band(10,2000)"
+lower = 7.5
+upper= 12.0
+[[stages.calculate]]
+value1 =1.0
+goal1 = "indexkur"
+lower = 1.0
+upper= 2.4
+#故障树的故障描述
+desc = "故障第二阶段"
+suggest = "检修"
+
+[[stages]]
+name="滚动轴承外圈故障第三阶段"
+[[stages.calculate]]
+value1 =1.0
+goal1 = "rms_band(10,2000)"
+lower = 12.0
+upper= +inf
+[[stages.calculate]]
+value1 =1.0
+goal1 = "indexkur"
+lower = 2.4
+upper= +inf
+#故障树的故障描述
+desc = "故障第三阶段"
+suggest = "检修"
+
+[[nodes]]
+name="与"
+
+
+[[nodes.children]]
+name="与"
+
+
+[[nodes.children.children]]
+name="测量参数:m/s2"
+message=true
+
+[[nodes.children.children]]
+name="或"
+
+
+[[nodes.children.children.children]]
+name="未知类型滚动轴承"
+message=true
+
+[[nodes.children.children.children]]
+name="球轴承"
+message=true
+
+[[nodes.children.children.children]]
+name="滚珠轴承"
+message=true
+
+[[nodes.children]]
+name="或"
+
+
+[[nodes.children.children]]
+name="或"
+
+
+[[nodes.children.children.children]]
+name="1*BPOR>alarmH"
+calculate.value1=1.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=0.0
+
+[[nodes.children.children.children]]
+name="2*BPOR>alarmH"
+calculate.value1=2.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="3*BPOR>alarmH"
+calculate.value1=3.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="4*BPOR>alarmH"
+calculate.value1=4.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="5*BPOR>alarmH"
+calculate.value1=5.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="6*BPOR>alarmH"
+calculate.value1=6.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="7*BPOR>alarmH"
+calculate.value1=7.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="8*BPOR>alarmH"
+calculate.value1=8.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="9*BPOR>alarmH"
+calculate.value1=9.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="10*BPOR>alarmH"
+calculate.value1=10.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children]]
+name="或"
+
+[[nodes.children.children.children]]
+name="11*BPOR>alarmH"
+calculate.value1=11.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="12*BPOR>alarmH"
+calculate.value1=12.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="13*BPOR>alarmH"
+calculate.value1=13.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="14*BPOR>alarmH"
+calculate.value1=14.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="15*BPOR>alarmH"
+calculate.value1=15.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="16*BPOR>alarmH"
+calculate.value1=16.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+
+[[nodes.children.children.children]]
+name="17*BPOR>alarmH"
+calculate.value1=17.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="18*BPOR>alarmH"
+calculate.value1=18.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="19*BPOR>alarmH"
+calculate.value1=19.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="20*BPOR>alarmH"
+calculate.value1=20.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="21*BPOR>alarmH"
+calculate.value1=21.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0
+
+[[nodes.children.children.children]]
+name="22*BPOR>alarmH"
+calculate.value1=22.0
+calculate.goal1="BPOR"
+calculate.method=">"
+calculate.standard=1.0

@@ -1,0 +1,7 @@
+|- main.go 管理所有子程序的启动、管理程序
+	|-./handler	cms主要后台程序
+	|-./insertexe	自动导入文本数据的监控、导入程序
+	|-./modbusexe	modbusTCP通信相关程序。本项目可先不参考这部分
+	|-./mod		主要功能函数
+		|- ./table_design 	cms的主要数据库设计和数据结构设计
+	|-./alert	包含报警的表单设计

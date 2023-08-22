@@ -1,0 +1,291 @@
+# 标准版本。
+fanversion="1.5"#风机标准索引版本号
+desc="说明备注"#风机标准的说明备注
+treeversion="1.1" #风机故障树的通用标准索引版本号，测点未特殊声明故障树版本时采用该版本
+unit = "g" #风机数据y轴单位：g
+
+#[[parts]]定义风机下的部件
+# 约定：部件类型的type包括六大类，不可修改：主轴承、齿轮箱、发电机、机舱、塔架、叶片。部件名称可修改
+[[parts]] #一个部件
+name = "主轴承#1" #部件名称
+type = "主轴承" #部件类型
+module = "CMS" #所属模块。约定有CMS BMS TMS，备用。
+
+#[[parts]]部件下的通用特征值1
+[[parts.properties]]        #特征值信息
+name="轴承外圈通过频率"     #必须，特征值名
+nameEn="BPOR"              #非必须，特征值英文名，用于故障树索引。将全部自动转为大写！
+formula="1/ 104 * 3.15"    #非必须，使用公式。当前软件不用于计算。
+value=0.030288463          #非必须，值。
+
+#[[parts]]部件下的通用特征值2。另起一个
+[[parts.properties]]        #特征值信息
+name="轴承内圈通过频率"     #必须，特征值名
+nameEn="BPIR"              #非必须，特征值英文名，用于故障树索引。将全部自动转为大写！
+formula="1/ 104 * 3.15"    #非必须，使用公式。当前软件不用于计算。
+value=0.030288463          #非必须，值。
+
+#[[parts]]部件下的通用幅值报警1
+[[parts.bands]]            #一种频带报警的标准声明
+value="加速度"      #判断值的类型，必填
+property="峭度指标"   #比较峭度指标,range为空
+range="" #频带范围 此处为空
+rpm_floor=40.0 #转速下限
+rpm_upper=80.0 #转速上限 判断：转速下限 <= 数据转速 < 转速上限
+# [[band.floor]]为[[band]]频带下B/C注意等级的阈值
+[parts.bands.floor]
+std=0.02             #B/C判断阈值
+level = 2           #报警等级。2为注意 3为报警，这里为2。
+desc="峭度指标注意" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+# [[band.upper]]为[[band]]频带下C/D报警等级的阈值
+[parts.bands.upper]
+std=0.5            #C/D判断阈值
+level = 3           #报警等级。2为注意 3为报警，这里为3。
+desc="峭度指标报警" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+
+#[[parts]]部件下的通用幅值报警2，另起一个
+[[parts.bands]]            #一种频带报警的标准声明
+value="加速度"      #判断值的类型，必填
+property="波形指标"   #比较峭度指标
+rpm_floor=40.0 #转速下限
+rpm_upper=80.0 #转速上限 判断：转速下限 <= 数据转速 < 转速上限
+# [[band.floor]]为[[band]]频带下B/C注意等级的阈值
+[parts.bands.floor] #B/C 达到注意的标准
+std=0.02             #B/C判断阈值
+level = 2           #报警等级。2为注意 3为报警，这里为2。
+desc="波形指标注意" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+# [[band.upper]]为[[band]]频带下C/D报警等级的阈值
+[parts.bands.upper] #C/D 达到报警的标准
+std=0.5            #C/D判断阈值
+level = 3           #报警等级。2为注意 3为报警，这里为3。
+desc="峭度指标报警" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+
+#[[parts]]部件下的测点
+[[parts.points]]    #部件下的测点信息
+name="主轴承水平"   #必须，测点名，根据风场_风机_测点名匹配数据
+direction="水平"    #必须，测点方向
+
+#[[parts]]部件下的测点，另起一个
+[[parts.points]]
+name="主轴承垂直"
+direction="垂直"
+treeversion="1.2" #测点使用的特殊故障树，非必填。若有值则故障树报警以测点的故障树标准为准，否则以风机通用故障树版本为准。
+
+[[parts.points]]
+name="主轴承径向"
+direction="径向" 
+
+#测点下的特殊特征值，当测点有和部件【英文名】同名的特征值，以测点特征值为准
+[[parts.points.properties]]       
+name="轴承外圈通过频率"     #必须，特征值名
+nameEn="BPOR"              #非必须，特征值英文名，用于故障树索引。故障时索引时将全部转为大写识别！
+formula="1/ 104 * 3.15"    #非必须，使用公式。当前软件不用于计算。
+value=1.0          #非必须，float值。
+
+#该测点下的特征值，另起一个
+[[parts.points.properties]]
+name="轴承内圈通过频率"
+nameEn="BPIR"
+formula="1/ 104 * 4.56"
+value=0.043846156
+
+[[parts.points.properties]]
+name="主轴承保持架频率"
+formula="1/104*0.47"
+value=0.004519231
+
+[[parts.points.properties]]
+name="轴承滚子自转频率"
+nameEn="BSF"
+formula="1/104*2.85"
+value=0.027403846
+
+[[parts.points.properties]]
+name="轴承滚子自传频率谐波"
+nameEn="BSF harmonic wave"
+formula="1/104*2.85"
+value=0.027403846
+
+[[parts.points.properties]]
+name="轴承滚子自传频率谐波边频"
+nameEn="BSF harmonic wave.side frequency"
+formula="1/104*2.85"
+value=0.027403846
+
+[[parts.points.properties]]
+name="主轴承转速"
+formula="1/104"
+value=0.009615385
+
+#测点下的特殊幅值报警标准，当测点有和部件value、property、range相同的标准，以测点幅值报警标准为准
+[[parts.points.bands]]            #一种频带报警的标准声明
+value="加速度"      #判断值的类型，必填
+property="有效值"   #频带计算有效值，不用改。
+range="0.1 10"      #频带上下限，格式为“A B”，注意中间空格
+rpm_floor=0.0 #转速下限
+rpm_upper=80.0 #转速上限 
+# [[band.floor]]为[[band]]频带下B/C注意等级的阈值
+[parts.points.bands.floor]
+std=0.3             #B/C判断阈值
+level = 2           #报警等级。2为注意 3为报警，这里为2。
+desc="主轴承频带值>B/C阈值" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+# [[band.upper]]为[[band]]频带下C/D报警等级的阈值
+[parts.points.bands.upper]
+std=0.5            #C/D判断阈值
+level = 3           #报警等级。2为注意 3为报警，这里为3。
+desc="主轴承频带值>C/D阈值" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+
+# 需要指定另一个频带的报警内容，则重新声明[[band]]
+[[parts.points.bands]]
+value="速度"
+property="有效值"
+range="10 1000"
+[parts.points.bands.floor]
+std=2.0
+level = 2           #报警等级。2为注意 3为报警
+desc="主轴承频带值>B/C阈值" #报警描述
+suggest="检修"          #处理建议
+[parts.points.bands.upper]
+std=4.2
+Level = 3           #报警等级。2为注意 3为报警
+desc="主轴承频带值>C/D阈值" #报警描述
+suggest="检修"          #处理建议
+
+#结束第一个部件下的编辑
+#第二个部件，用[[parts]]另起一个
+[[parts]] 
+name = "主轴承#2" #部件名称
+type = "主轴承" #部件类型
+module = "CMS" #所属模块。约定有CMS BMS TMS，备用。
+
+#第三个部件
+[[parts]]
+name = "齿轮箱#1"
+type = "齿轮箱"
+module = "CMS"
+#第三个部件下的通用特征值
+[[parts.properties]]
+name="齿轮箱啮合频率"
+nameEn="GMF"
+formula="1/104*109"
+value=100.0
+#第三个部件下的测点
+[[parts.points]]
+name="齿轮箱低速轴径向"
+direction="径向" 
+[[parts.points.bands]]  #齿轮箱低速轴径向下的一种幅值报警的标准声明
+value="加速度"      #判断值的类型，必填
+property="波形指标"   #比较波形指标，不是频带报警，range为空
+# [[band.floor]]为[[band]]频带下B/C注意等级的阈值
+[parts.points.bands.floor] #B/C 达到注意的标准
+std=0.02             #B/C判断阈值
+level = 2           #报警等级。2为注意 3为报警，这里为2。
+desc="峭度指标注意" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+# [[band.upper]]为[[band]]频带下C/D报警等级的阈值
+[parts.points.bands.upper] #C/D 达到报警的标准
+std=0.5            #C/D判断阈值
+level = 3           #报警等级。2为注意 3为报警，这里为3。
+desc="峭度指标报警" #报警描述，可人为定义
+suggest="检修"          #处理建议，可人为定义
+
+
+[[parts.points]]
+name="齿轮箱高速电机侧垂直"
+direction="垂直" 
+
+[[parts.points]]
+name="齿轮箱高速叶片侧垂直"
+direction="垂直"
+
+#齿轮箱高速叶片侧垂直部件下该测点的特殊特征值
+[[parts.points.properties]]
+name="齿轮箱啮合频率"
+nameEn="GMF"
+formula="1/104*109"
+value=1.048077
+
+[[parts.points.properties]]
+name="行星齿轮啮合频率"
+formula="1/104*109"
+value=1.048077
+
+[[parts.points.properties]]
+name="高速齿轮啮合频率"
+formula="23"
+value=23.0
+
+[[parts.points.properties]]
+name="中间级啮合频率"
+formula="23/4"
+value=0.74
+
+#第三个部件下该测点的特殊幅值报警标准
+[[parts.points.bands]]
+value="加速度"
+property="有效值"
+range="0.1 10"
+[parts.points.bands.floor]
+std=0.3
+Level = 2           #报警等级。2为注意 3为报警
+desc="齿轮箱频带值>B/C阈值" #报警描述
+suggest="检修"          #处理建议
+[parts.points.bands.upper]
+std=0.5
+Level = 3           #报警等级。2为注意 3为报警
+desc="齿轮箱频带值>C/D阈值" #报警描述
+suggest="检修"          #处理建议
+
+[[parts.points.bands]]
+value="加速度"
+property="有效值"
+range="10 2000"
+[parts.points.bands.floor]
+std=7.5
+Level = 2           #报警等级。2为注意 3为报警
+desc="齿轮箱频带值>B/C阈值" #报警描述
+suggest="检修"          #处理建议
+[parts.points.bands.upper]
+std=12.0
+Level = 3           #报警等级。2为注意 3为报警
+desc="齿轮箱频带值>C/D阈值" #报警描述
+suggest="检修"          #处理建议
+
+[[parts.points.bands]]
+value="速度"
+property="有效值"
+range="10 1000"
+[parts.points.bands.floor]
+std=3.5
+Level = 2           #报警等级。2为注意 3为报警
+desc="齿轮箱频带值>B/C阈值" #报警描述
+suggest="检修"          #处理建议
+[parts.points.bands.upper]
+std=5.6
+Level = 3           #报警等级。2为注意 3为报警
+desc="齿轮箱频带值>C/D阈值" #报警描述
+suggest="检修"          #处理建议
+
+[[parts.points]]
+name="齿轮箱行星级径向"
+direction="径向" 
+
+[[parts.points]]
+name="齿轮箱中间轴轴向"
+direction="轴向"
+
+[[parts]]
+name = "发电机#1"
+type = "发电机"
+module = "CMS"
+
+
+
+
+

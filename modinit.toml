@@ -1,0 +1,19 @@
+[[Mod]] #一个模块
+Name = "CMS系统"  #服务名，勿修改！
+Port = "3000" #使用端口
+Dir =  "./cmsProgram" #路径
+
+[[Mod]] #一个模块
+Name = "数据分析服务" #服务名，勿修改！
+Port = "3006" #使用端口
+Dir =  "./analysis/CMSSP_CROW" #路径
+
+[[Mod]] #一个模块
+Name = "ModbusTCP服务"  #服务名，勿修改！
+Port = "3001" #使用端口
+Dir =  "./analysis/cmsModbus" #路径
+
+[[Mod]] #一个模块
+Name = "数据自动导入服务"  #服务名，勿修改！
+Port = "3002" #使用端口
+Dir =  "./analysis/cmsDatawatch" #路径
