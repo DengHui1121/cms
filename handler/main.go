@@ -71,7 +71,7 @@ func main() {
 	Start()
 }
 
-//用于报警分析的antspool
+// 用于报警分析的antspool
 func Start() {
 	// Infof("CMS服务器开始运行")
 	e := echo.New()

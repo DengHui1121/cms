@@ -19,7 +19,7 @@ import (
 var Alertmessage chan *Alert = make(chan *Alert, 200) //收报警信息的id
 var DataLimit *LimitCondition = new(LimitCondition)
 
-//^ 文件读取
+// ^ 文件读取
 func FileGet(file io.Reader, dst interface{}) error {
 	_, err := toml.NewDecoder(file).Decode(dst)
 	if err != nil {
@@ -30,7 +30,7 @@ func FileGet(file io.Reader, dst interface{}) error {
 
 //^ 风机特征值和测点导入事务。
 
-//^ 读取风机toml文件并索引到标准文件。
+// ^ 读取风机toml文件并索引到标准文件。
 func MachineFileUpdate(src io.Reader, db *gorm.DB) (m Machine, err error) {
 	err = FileGet(src, &m)
 	if err != nil {
@@ -232,7 +232,7 @@ func CheckExist(db *gorm.DB, table string, uplevel, uplevelid string, indexlevel
 	return
 }
 
-//^ x坐标生成
+// ^ x坐标生成
 func XGenerate(step float64, length int) (x []float32) {
 	x = make([]float32, 0)
 	for i := 0; i < length; i++ {
@@ -247,7 +247,7 @@ func XGenerate(step float64, length int) (x []float32) {
 	return x
 }
 
-//^ 单测点绘图坐标
+// ^ 单测点绘图坐标
 func (plot *DatatoPlot) Plot(db *gorm.DB, tableprefix string, fid string, iid string) (err error) {
 	var dd Data
 	dtable := "data_" + tableprefix + fid
@@ -295,8 +295,8 @@ func (plot *DatatoPlot) Plot(db *gorm.DB, tableprefix string, fid string, iid st
 	return err
 }
 
-//^ 趋势图绘图坐标
-//TODO: 限制点数.选择点的前后一年内10000条的历史数据
+// ^ 趋势图绘图坐标
+// TODO: 限制点数.选择点的前后一年内10000条的历史数据
 func (plot *DatatoPlot) CPlot(db *gorm.DB, tableprefix string, fid string, iid string, ctype string) (err error) {
 	dtable := "data_" + tableprefix + fid
 	var data Data
@@ -344,7 +344,7 @@ func (plot *DatatoPlot) CPlot(db *gorm.DB, tableprefix string, fid string, iid s
 	return err
 }
 
-//TODO Debug
+// TODO Debug
 func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 	for k, v := range plot.Currentplot {
 		ppmwcid, pmwname, _, err := PointtoFactory(db, v.PointId)
@@ -396,7 +396,7 @@ func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 	return nil
 }
 
-//最新一百条数据
+// 最新一百条数据
 func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string) (err error) {
 	for k, v := range plot.Currentplot {
 		var tempd []Data
@@ -427,7 +427,7 @@ func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string
 	return nil
 }
 
-//^ 导入数据
+// ^ 导入数据
 func CheckData(db *gorm.DB, pdata *Data) error {
 	pid := strconv.FormatUint(uint64(pdata.PointID), 10)
 	ppmwcid, _, _, err := PointtoFactory(db, pid)
@@ -604,6 +604,7 @@ func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
 // }
 
 func DataAlert_2(db *gorm.DB, pdata Data, fid string, ipport string) (err error) {
+	//ppmwcid: point part machine windfield company id
 	ppmwcid, _, _, err := PointtoFactory(db, pdata.PointID)
 	if err != nil {
 		return err
@@ -662,7 +663,7 @@ func DataAlert_2(db *gorm.DB, pdata Data, fid string, ipport string) (err error)
 	return
 }
 
-//^ 查询数据
+// ^ 查询数据
 func FindDataHistory(db *gorm.DB, c echo.Context, datatable string, m Limit, fid string, id string) (f interface{}, err error) {
 	var d []Datainfo
 	if m.Starttime == "" {

@@ -2,12 +2,11 @@ package mod
 
 import (
 	"fmt"
-	"main/alert"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/mozillazg/go-pinyin"
 	"gorm.io/gorm"
+	"main/alert"
+	"time"
 )
 
 type User struct {
@@ -89,7 +88,7 @@ type Windfarm struct {
 	District    string  `gorm:"not null" json:"district"`
 	Longitude   float32 `gorm:"not null" json:"longitude,string"`
 	Latitude    float32 `gorm:"not null" json:"latitude,string"`
-
+	
 	Status   uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
 	Machines []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
 	//一年内故障次数
@@ -111,7 +110,7 @@ func (u *Windfarm) AfterFind(tx *gorm.DB) error {
 		u.FactoryID = 0
 		return err
 	}
-
+	
 	var statuss []uint
 	tx.Table("windfarm").Joins("join machine on machine.windfarm_uuid = windfarm.uuid").Where("windfarm.id=?", u.ID).Select("machine.status").Scan(&statuss)
 	_, max := MaxStatus(statuss)
@@ -219,7 +218,7 @@ func (u *Machine) AfterFind(tx *gorm.DB) error {
 	if subfv != "" {
 		u.FanVersion = subfv
 	}
-
+	
 	//一年内故障次数
 	stime := time.Now().AddDate(-1, 0, 0)
 	etime := time.Now()
@@ -569,7 +568,7 @@ type Alert struct {
 	Handle           uint8             `gorm:"type:tinyint" json:"handle"`    //0为红色表示未处理，1为绿色表示已处理。
 	Broadcast        uint8             `gorm:"type:tinyint" json:"broadcast"` //是否通知给了前端 0/1
 	BroadcastMessage string            `gorm:"-" json:"message"`              //是否通知给了前端 0/1
-
+	
 }
 
 func (u *Alert) AfterFind(tx *gorm.DB) error {

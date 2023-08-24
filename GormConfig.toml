@@ -1,5 +1,5 @@
 Admin ="root"                   #数据库用户名
-Password ="admin439460"         #数据库密码，根据实际修改，无密码则为Password =""
+Password ="123456"         #数据库密码，根据实际修改，无密码则为Password =""
 Net ="tcp"                      #通信协议，不用修改
 Addr ="127.0.0.1"               #ip地址。这里为本地。
 Port = "3306"                   #数据库端口，mysql默认是3306，可不用修改。

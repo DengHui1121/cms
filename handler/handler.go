@@ -40,7 +40,7 @@ func ErrNil(c echo.Context, returnData mod.ReturnData, d interface{}, info strin
 	c.JSON(200, returnData)
 }
 
-//*登录
+// *登录
 func Login(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -73,7 +73,7 @@ func Login(c echo.Context) error {
 	}
 }
 
-//*修改账号
+// *修改账号
 func UserOption(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -141,7 +141,7 @@ func UserOption(c echo.Context) error {
 	return err
 }
 
-//* 标准文件读取。相同版本号的直接覆盖。
+// * 标准文件读取。相同版本号的直接覆盖。
 func StdFileUpload(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -216,7 +216,7 @@ func StdUpdate(c echo.Context) error {
 	return nil
 }
 
-//* api/v1/structure
+// * api/v1/structure
 func FindAll(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -267,7 +267,7 @@ func FindAll(c echo.Context) error {
 	return err
 }
 
-//* api/v1/xx?id=
+// * api/v1/xx?id=
 func FindTree(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -524,7 +524,7 @@ func PostDataLimit(c echo.Context) error {
 	return nil
 }
 
-//* 查找某一级下一级的所有内容
+// * 查找某一级下一级的所有内容
 func FindInfo(c echo.Context) error {
 	var dst interface{}
 	var table string
@@ -548,7 +548,7 @@ func FindInfo(c echo.Context) error {
 	return nil
 }
 
-//* api/v1/xx/:id
+// * api/v1/xx/:id
 func UpdateInfo(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -623,7 +623,7 @@ func UpdateInfo(c echo.Context) error {
 	return nil
 }
 
-//TODO 修改报警详细信息
+// TODO 修改报警详细信息
 func UpdateAlert(c echo.Context) error {
 	var err error
 	var returnData mod.ReturnData
@@ -799,8 +799,8 @@ func InsertAlert(c echo.Context) error {
 	return nil
 }
 
-//* 风机文件：存在即更新，不存在即导入
-//* api/v1/fan/parts 导入部件
+// * 风机文件：存在即更新，不存在即导入
+// * api/v1/fan/parts 导入部件
 func FileUpload(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -834,7 +834,7 @@ func FileUpload(c echo.Context) error {
 	return nil
 }
 
-//* api/v1/data 导入/更新数据
+// * api/v1/data 导入/更新数据
 func CheckMPointData(ipport string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var err error
@@ -950,7 +950,7 @@ func OverMPointData(ipport string) echo.HandlerFunc {
 	}
 }
 
-//* api/v1/xx delete
+// * api/v1/xx delete
 func DeleteInfo(c echo.Context) error {
 	var err error
 	var dst interface{}
@@ -1118,7 +1118,7 @@ func DeleteStd(c echo.Context) error {
 	return nil
 }
 
-//* 数据绘图
+// * 数据绘图
 func DataPlot(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -1206,7 +1206,7 @@ func GetFanDataCurrentPlot(c echo.Context) error {
 	return err
 }
 
-//TODO linux系统试验
+// TODO linux系统试验
 func AnalyseDataPlot(exepath string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var err error
@@ -1437,7 +1437,7 @@ func UpdateStatus(c echo.Context) error {
 	return err
 }
 
-//*********运行统计handler
+// *********运行统计handler
 func GetFaultCounts(c echo.Context) error {
 	var err error
 	var returnData mod.ReturnData
@@ -1530,7 +1530,7 @@ func GetStatisticsStatus(c echo.Context) error {
 		Joins("right join windfarm on factory.uuid = windfarm.factory_uuid").
 		Joins("right join machine on windfarm.uuid = machine.windfarm_uuid").
 		Select("factory.id AS factory_id , windfarm.id AS windfarm_id,machine.id AS machine_id,machine.status AS machine_status")
-		//查询
+	//查询
 	var ex []map[string]interface{}
 	switch keyword {
 	case "company": //公司
@@ -1800,7 +1800,7 @@ func InputDB(c echo.Context) error {
 	return err
 }
 
-//传给前端文件下载
+// 传给前端文件下载
 func DownloadOutput(c echo.Context) error {
 	filename := c.QueryParam("file_name")
 	_, err := os.Stat(filename)
