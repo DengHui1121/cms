@@ -11,12 +11,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-
+	
 	"github.com/BurntSushi/toml"
 	"github.com/goburrow/modbus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-
+	
 	"gorm.io/gorm"
 )
 
@@ -72,12 +72,12 @@ func main() {
 	select {}
 	*/
 	Start()
-
+	
 }
 func Start() {
 	mlog.Info("ModbusTCP通讯模块开始运行")
 	e := echo.New()
-
+	
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
 		AllowHeaders: []string{"*", "Content-Type"},
@@ -97,7 +97,7 @@ func GetServerSet(c echo.Context) error {
 		IPIDs:    []mbserver.FanSet{},
 		ErrIPIDs: []mbserver.FanSet{},
 	}
-
+	
 	for _, v := range fi.IPs {
 		jsonipid.IPIDs = append(jsonipid.IPIDs, fi.IPIDs[v])
 	}
@@ -122,12 +122,12 @@ func PostFan(c echo.Context) error {
 	db.Table("windfarm").Where("id=?", msg.WindfarmName).Pluck("name", &msg.WindfarmName)
 	msg.MachineID = msg.MachineName
 	db.Table("machine").Where("id=?", msg.MachineName).Pluck("name", &msg.MachineName)
-
+	
 	if _, ok := fi.IPIDs[msg.IP]; !ok {
 		fi.IPs = append(fi.IPs, msg.IP)
 	}
 	fi.IPIDs[msg.IP] = msg
-
+	
 	var jsonipid mbserver.JsonFanIPID
 	for _, v := range fi.IPs {
 		jsonipid.IPIDs = append(jsonipid.IPIDs, fi.IPIDs[v])
@@ -139,7 +139,7 @@ func PostFan(c echo.Context) error {
 		ErrCheck(c, returnData, err, "风机插入失败")
 		return err
 	}
-
+	
 	ErrNil(c, returnData, jsonipid, "风机插入成功")
 	return nil
 }
@@ -147,7 +147,7 @@ func FileRead(c echo.Context) error {
 	var err error
 	var msg interface{}
 	returnData := mod.ReturnData{}
-
+	
 	i := c.Param("type")
 	var file *multipart.FileHeader
 	file, err = c.FormFile("modbus_set")
@@ -189,10 +189,10 @@ func FileRead(c echo.Context) error {
 func DeleteFan(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
-
+	
 	var dip []string
 	c.Bind(&dip)
-
+	
 	for _, v := range dip {
 		for k := range fi.IPs {
 			if fi.IPs[k] == v {
@@ -206,7 +206,7 @@ func DeleteFan(c echo.Context) error {
 				delete(fi.ErrIPIDs, v)
 			}
 		}
-
+		
 	}
 	var temperr []string
 	for _, v := range fi.ErrIPs {
@@ -215,16 +215,16 @@ func DeleteFan(c echo.Context) error {
 		}
 	}
 	fi.ErrIPs = temperr
-
+	
 	var temp []string
-
+	
 	for _, v := range fi.IPs {
 		if v != "delete" {
 			temp = append(temp, v)
 		}
 	}
 	fi.IPs = temp
-
+	
 	var jsonipid mbserver.JsonFanIPID
 	for _, v := range fi.IPs {
 		jsonipid.IPIDs = append(jsonipid.IPIDs, fi.IPIDs[v])
@@ -297,7 +297,7 @@ func ModbusTCPServer(ipport string) error {
 				return []byte{}, &mbserver.IllegalDataAddress
 			}
 			dataSize := numRegs * 2
-
+			
 			data := make([]byte, 1+dataSize)
 			data[0] = byte(dataSize)
 			var result []byte
@@ -308,7 +308,7 @@ func ModbusTCPServer(ipport string) error {
 			// fmt.Printf("server向地址%v发送测点状态响应数据(uint16)%v\n", addr, result)
 			return data, &mbserver.Success
 		})
-
+	
 	err := serv.ListenTCP(ipport)
 	if err != nil {
 		return err
@@ -320,14 +320,14 @@ func ModbusTCPServer(ipport string) error {
 func ModbusTCPClient(ipport string) {
 	register := 0
 	numRegs := 6
-
+	
 	fmt.Printf("client请求从%v开始的%v个地址状态数据\n", register, numRegs)
 	handler := modbus.NewTCPClientHandler(ipport)
 	handler.Connect()
 	defer handler.Close()
 	client := modbus.NewClient(handler)
 	results, err := client.ReadHoldingRegisters(uint16(register), uint16(numRegs))
-
+	
 	if err != nil {
 		fmt.Println(err)
 	}

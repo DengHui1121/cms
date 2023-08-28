@@ -4,6 +4,11 @@ package mod
 import (
 	"bufio"
 	"fmt"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,14 +21,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	_ "github.com/go-sql-driver/mysql"
-
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 var dbconfig *GormConfig
@@ -95,7 +92,7 @@ func TableCheck(db *gorm.DB) (err error) {
 	}
 	// var f Factory = Factory{Name: "大唐四川发电有限公司新能源分公司"}
 	// db.Table("factory").Where("name=?", f.Name).FirstOrCreate(&f)
-
+	
 	//band列改名
 	if db.Table("band").Migrator().HasColumn(&alert.Band{}, "range") {
 		db.Table("band").Migrator().RenameColumn(&alert.Band{}, "range", "band_range")
@@ -106,7 +103,7 @@ func TableCheck(db *gorm.DB) (err error) {
 	if err != nil {
 		return err
 	}
-
+	
 	//检测风场下属相关数据表是否存在
 	var fs []Machine
 	err = db.Table("machine").Select("id", "uuid").Scan(&fs).Error
@@ -159,7 +156,7 @@ func CreateSchema(dbconfig *GormConfig) (err error) {
 func Paginate(r *http.Request) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-
+		
 		if page == 0 {
 			page = 1
 		}
@@ -205,7 +202,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	var DataTableStr []string
 	var WaveTableStr []string
 	var MsgTableStr []string
-
+	
 	prefix := "_backup_" + time.Now().Format("20060102150405") + "_"
 	//建表
 	err = db.Transaction(func(tx *gorm.DB) error {
@@ -267,7 +264,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 		}
 		return nil
 	})
-
+	
 	if err != nil {
 		return
 	}
@@ -313,7 +310,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 			}
 		}
 	}()
-
+	
 	//操作
 	//导出
 	var createfile string
@@ -341,7 +338,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	inifile.Write([]byte(inistr))
 	inifile.Close()
 	var opt []string
-
+	
 	opt = []string{"--defaults-extra-file=" + inifilepath, dbconfig.Schema}
 	//目标表格
 	opt = append(opt, MsgTableStr...)
@@ -349,9 +346,9 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	opt = append(opt, WaveTableStr...)
 	defaultopt := []string{"--skip-comments", "--compact", "--hex-blob"}
 	opt = append(opt, defaultopt...)
-
+	
 	cmd := exec.Command("mysqldump", opt...)
-
+	
 	// 设置接收
 	if _, err := os.Stat(sfilepath); err != nil {
 		if !os.IsExist(err) {
@@ -374,12 +371,12 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	// var outerr bytes.Buffer
 	// cmd.Stdout = &out
 	// cmd.Stderr = &outerr
-
+	
 	err = cmd.Run()
 	if err != nil {
 		return
 	}
-
+	
 	return
 }
 func TableInsert_2(db *gorm.DB, sqlfile io.Reader) error {
@@ -396,7 +393,7 @@ func TableInsert_2(db *gorm.DB, sqlfile io.Reader) error {
 	if err != nil {
 		return err
 	}
-
+	
 	sqltname, err := filepath.Abs(sqlfiletemp.Name())
 	if err != nil {
 		return err
@@ -405,7 +402,7 @@ func TableInsert_2(db *gorm.DB, sqlfile io.Reader) error {
 		sqlfiletemp.Close()
 		os.Remove(sqltname)
 	}()
-
+	
 	_, err = io.Copy(sqlfiletemp, sqlfile)
 	if err != nil {
 		return err
@@ -464,7 +461,7 @@ func TableInsert(db *gorm.DB, sqlfile *os.File) error {
 		}
 	}
 	return nil
-
+	
 }
 
 var Tablename map[string]interface{} = map[string]interface{}{
@@ -501,7 +498,7 @@ func TableCombine(db *gorm.DB) error {
 	var DataTableStr []string
 	var ReportTableStr []string
 	var MsgTableStr []string
-
+	
 	for _, v := range t {
 		if strings.Contains(v, "_backup_") {
 			BackupTableStr = append(BackupTableStr, v)
@@ -519,7 +516,7 @@ func TableCombine(db *gorm.DB) error {
 			}
 		}
 	}
-
+	
 	//先导入设备表，再导入数据，再导入故障
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, v := range MsgTableStr {
@@ -546,7 +543,7 @@ func TableCombine(db *gorm.DB) error {
 		}
 		return nil
 	})
-
+	
 	//转移
 	var AlertTable string
 	err = db.Transaction(func(tx *gorm.DB) error {
@@ -630,7 +627,7 @@ func TableCombine(db *gorm.DB) error {
 							}
 						}
 					}
-
+					
 					// 粘贴数据
 					ds := make([]map[string]interface{}, 0)
 					var tatalc int64
@@ -683,7 +680,7 @@ func TableCombine(db *gorm.DB) error {
 		if err != nil {
 			return err
 		}
-
+		
 		// alert
 		if strings.Contains(AlertTable, "_backup_") {
 			vnew := strings.Trim(AlertTable, "_backup_")
@@ -720,7 +717,7 @@ func TableCombine(db *gorm.DB) error {
 				}
 			}
 		}
-
+		
 		if err != nil {
 			return err
 		}

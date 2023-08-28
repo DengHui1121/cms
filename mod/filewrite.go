@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
+	
 	"baliance.com/gooxml"
 	"baliance.com/gooxml/color"
 	"baliance.com/gooxml/common"
@@ -48,13 +48,13 @@ func (opj *OutputJob) OutputData(db *gorm.DB) error {
 	var err error
 	task := new(OutputFile)
 	task.FileType = opj.JobSet.FileType
-
+	
 	var fwp FanWithPoint
 	fwp.FanID = opj.JobSet.Machine
-
+	
 	stime, _ := StrtoTime("2006-01-02 15:04:05", opj.JobSet.Starttime)
 	etime, _ := StrtoTime("2006-01-02 15:04:05", opj.JobSet.Endtime)
-
+	
 	err = db.Table("data_"+opj.JobSet.Machine).Where("time_set BETWEEN ? AND ?", stime, etime).Where("rpm BETWEEN ? AND ?", opj.JobSet.MinRpm, opj.JobSet.MaxRpm).
 		Joins(fmt.Sprintf("left join point on point.uuid = %s", "data_"+opj.JobSet.Machine+".point_uuid")).
 		Where("point.id IN ?", opj.JobSet.PointIDs).
@@ -75,10 +75,10 @@ func (opj *OutputJob) OutputAlert(db *gorm.DB) error {
 	var err error
 	task := new(OutputFile)
 	task.FileType = opj.JobSet.FileType
-
+	
 	stime, _ := StrtoTime("2006-01-02 15:04:05", opj.JobSet.Starttime)
 	etime, _ := StrtoTime("2006-01-02 15:04:05", opj.JobSet.Endtime)
-
+	
 	var fwp FanWithPoint
 	fwp.FanID = opj.JobSet.Machine
 	err = db.Table("alert").Where("time_set BETWEEN ? AND ?", stime, etime).Where("rpm BETWEEN ? AND ?", opj.JobSet.MinRpm, opj.JobSet.MaxRpm).
@@ -263,7 +263,7 @@ func OutputDataExcel(db *gorm.DB, fpath string, fid string, dataid []string) (fn
 		// Select("band.range", "band.floor", "band.upper").
 		Limit(100000). //excel限制行数
 		Scan(&o)
-
+	
 	f := excelize.NewFile()
 	streamWriter, err := f.NewStreamWriter("Sheet1")
 	if err != nil {
@@ -302,11 +302,11 @@ func OutputDataExcel(db *gorm.DB, fpath string, fid string, dataid []string) (fn
 		var omap map[string]interface{}
 		o[rowID-2].Time = TimetoStr(o[rowID-2].TimeSet).Format("2006-01-02 15:04:05")
 		MaptoStruct(o[rowID-2], &omap)
-
+		
 		for colID := 0; colID < len(eimap); colID++ {
 			row[colID] = omap[eimap[colID].EName]
 		}
-
+		
 		cell, _ := excelize.CoordinatesToCellName(1, rowID)
 		if err = streamWriter.SetRow(cell, row); err != nil {
 			return
@@ -402,7 +402,7 @@ func OutputAlertExcel(db *gorm.DB, fpath string, fid string, dataid []string) (f
 	if err = streamWriter.SetRow("A1", row); err != nil {
 		return
 	}
-
+	
 	for rowID := 2; rowID < len(o)+2; rowID++ {
 		o[rowID-2].Time = TimetoStr(o[rowID-2].TimeSet).Format("2006-01-02 15:04:05")
 		if o[rowID-2].Source == 1 {
@@ -468,7 +468,7 @@ func OutputLogDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset JobS
 	fname = fpath + "/currentreport_" + time.Now().Format("20060102150405") + ".docx"
 	// 调取报告模板，替换基本信息
 	// read and parse the template docx
-
+	
 	var wname string
 	db.Table("windfarm").Where("id=?", jobset.Windfarm).Select("name").Find(&wname)
 	stime, _ := StrtoTime("2006-01-02 15:04:05", jobset.Starttime)
@@ -503,14 +503,14 @@ func OutputLogDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset JobS
 	style.RunProperties().SetCharacterSpacing(0.5)
 	style.RunProperties().SetColor(color.Black)
 	style.RunProperties().SetSize(12.0)
-
+	
 	p := docw.AddParagraph()
 	run := p.AddRun()
 	run.AddText(fmt.Sprintf("风场：%s  机组诊断报告  %s", wname, time.Now().Format("2006-01-02 15:04:05")))
 	docw.AddParagraph().AddRun().AddText("=========================================================")
 	docw.AddParagraph().AddRun().AddText(fmt.Sprintf("时间范围：%s ~ %s", jobset.Starttime, jobset.Endtime))
 	docw.AddParagraph().AddRun().AddText(fmt.Sprintf("转速范围：%v ~ %vRPM", jobset.MinRpm, jobset.MaxRpm))
-
+	
 	//循环 每个风机添加风机信息
 	for _, fv := range outputfile.FWP {
 		// 添加风机名
@@ -573,6 +573,7 @@ func OutputLogDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset JobS
 				if err != nil {
 					return
 				}
+				
 				if pic == nil {
 					p := docw.AddParagraph()
 					run := p.AddRun()
@@ -590,7 +591,7 @@ func OutputLogDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset JobS
 				}
 			}
 		}
-
+		
 	}
 	err = docw.SaveToFile(fname)
 	if err != nil {
@@ -636,7 +637,7 @@ func DrawLineChart_time(X_axis []time.Time, Y_axis []float32) (*os.File, error) 
 	)
 	ymin := float64(Y_axis[0])
 	ymax := float64(Y_axis[0])
-
+	
 	//transfer float32 to float64
 	var Y_axis_64 []float64
 	for _, f32_Y := range Y_axis {
@@ -662,7 +663,7 @@ func DrawLineChart_time(X_axis []time.Time, Y_axis []float32) (*os.File, error) 
 		Width:  lineChartWidth,
 		Height: lineChartHeight,
 		DPI:    lineChartDpi,
-
+		
 		Series: []chart.Series{
 			&chart.TimeSeries{
 				XValues: X_axis,
@@ -699,7 +700,7 @@ func DrawLineChart_time(X_axis []time.Time, Y_axis []float32) (*os.File, error) 
 			},
 		},
 	}
-
+	
 	if _, err := os.Stat("./output/temp"); err != nil {
 		if !os.IsExist(err) {
 			if err = os.MkdirAll("./output/temp", os.ModePerm); err != nil {
@@ -760,7 +761,7 @@ func OutputSuggestDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset 
 	// 	return err
 	// }
 	// rlimit.Endtime = etime.Format("2006.01.02 15:04")
-
+	
 	// replaceMap := docx.PlaceholderMap{
 	// 	"windfield": rlimit.Windfield,
 	// 	"stime":     rlimit.Starttime,
@@ -790,7 +791,7 @@ func OutputSuggestDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset 
 	docw.AddParagraph().AddRun().AddText("=========================================================")
 	docw.AddParagraph().AddRun().AddText(fmt.Sprintf("时间范围：%s ~ %s", jobset.Starttime, jobset.Endtime))
 	docw.AddParagraph().AddRun().AddText(fmt.Sprintf("转速范围：%v ~ %vRPM", jobset.MinRpm, jobset.MaxRpm))
-
+	
 	//循环 每个风机添加风机信息
 	for _, fv := range outputfile.FWP {
 		// 添加风机名
@@ -812,7 +813,7 @@ func OutputSuggestDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset 
 			}
 			docw.AddParagraph().AddRun().AddText("=========================================================")
 			docw.AddParagraph().AddRun().AddText("风机：" + fanname)
-
+			
 			//每个测点填写模板
 			for _, pv := range fv.IDtoOutput {
 				//查找所有人工报警
@@ -862,11 +863,11 @@ func OutputSuggestDocx(db *gorm.DB, fpath string, outputfile OutputFile, jobset 
 						defer os.Remove(picr.Name())
 					}
 					//维护图片 写到临时文件 暂不加
-
+					
 				}
 			}
 		}
-
+		
 	}
 	err = docw.SaveToFile(fname)
 	if err != nil {
@@ -907,7 +908,7 @@ func AlertTemplate(db *gorm.DB, d Data, fanunit string) (pic1, pic2 *os.File, er
 	}
 	defer pic1.Close()
 	//画图 频谱
-
+	
 	pic2, err = DrawLineChart(x_result, y_result, "Frequency/HZ", "", "Spectrogram")
 	if err != nil {
 		os.Remove(pic2.Name())
@@ -926,7 +927,7 @@ func DrawLineChart(X_axis, Y_axis []float32, Xname, Yname string, title string) 
 	)
 	ymin := float64(Y_axis[0])
 	ymax := float64(Y_axis[0])
-
+	
 	//transfer float32 to float64
 	var Y_axis_64 []float64
 	var X_axis_64 []float64
@@ -939,7 +940,7 @@ func DrawLineChart(X_axis, Y_axis []float32, Xname, Yname string, title string) 
 			ymax = float64(f32_Y)
 		}
 	}
-
+	
 	//transfer float32 to float64
 	for _, f32_Y := range Y_axis {
 		Y_axis_64 = append(Y_axis_64, float64(f32_Y))
@@ -967,13 +968,13 @@ func DrawLineChart(X_axis, Y_axis []float32, Xname, Yname string, title string) 
 			Show:     true,
 			FontSize: 10,
 		},
-
+		
 		Background: chart.Style{
 			Padding: chart.Box{
 				Top: 20,
 			},
 		},
-
+		
 		Series: []chart.Series{
 			chart.ContinuousSeries{
 				XValues: X_axis_64,
