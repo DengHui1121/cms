@@ -1923,3 +1923,20 @@ func AlertConfirm(c echo.Context) error {
 	ErrNil(c, returnData, nil, "confirm success")
 	return err
 }
+
+func Handler(c echo.Context) error {
+	var returnData mod.ReturnData
+	var request mod.Request
+	var err error
+	
+	if err = c.Bind(&request); err != nil {
+		return err
+	}
+	ErrNil(c, returnData, nil, "成功")
+	return nil
+}
+
+func GetValidValuesOfPart(c echo.Context) error {
+	
+	return nil
+}
