@@ -796,7 +796,7 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 	switch keyfunc {
 	case "spectrum": //0
 		//窗函数
-		//ourl : http://localhost:3006/api/v1/data/trans/
+		//ourl : http://localhost:3006/api/v1/data/trans/0
 		url = ourl + ao[keyfunc].DataUrl
 		if len(arg) != 3 {
 			err = errors.New("输入参数错误")

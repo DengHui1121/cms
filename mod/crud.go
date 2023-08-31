@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	
 	"github.com/BurntSushi/toml"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -80,7 +80,7 @@ func MachineUpdate(db *gorm.DB, p Machine) error {
 							pointtemp = append(pointtemp, p.Parts[k].Points[pk].ID)
 						}
 						tx.Table("point").Omit(clause.Associations).First(&p.Parts[k].Points[pk], p.Parts[k].Points[pk].ID)
-
+						
 						//更新测点下特征值
 						var pointpropertytemp []uint
 						for ppk := range p.Parts[k].Points[pk].Properties {
@@ -261,7 +261,7 @@ func (plot *DatatoPlot) Plot(db *gorm.DB, tableprefix string, fid string, iid st
 	}
 	dd.Time = time.Unix(dd.TimeSet, 0).Format("2006-01-02 15:04:05")
 	freq := dd.SampleFreq
-
+	
 	//时频图
 	originy := make([]float32, len(dd.Wave.DataFloat)/4)
 	resulty := make([]float32, len(dd.Wave.SpectrumFloat)/4)
@@ -275,18 +275,18 @@ func (plot *DatatoPlot) Plot(db *gorm.DB, tableprefix string, fid string, iid st
 		return err
 	}
 	rnum := len(resulty)
-
+	
 	var ostep float64 = 1000 / float64(freq)
 	var rstep float64 = float64(freq) / float64(onum)
-
+	
 	originx := XGenerate(ostep, onum)
 	resultx := XGenerate(rstep, rnum)
-
+	
 	plot.Originplot.Xaxis = originx
 	plot.Originplot.Yaxis = originy
 	plot.Originplot.Xunit = "ms"
 	db.Table("machine").Where("id=?", fid).Pluck("unit", &plot.Originplot.Yunit)
-
+	
 	plot.Resultplot.Xaxis = resultx
 	plot.Resultplot.Yaxis = resulty
 	plot.Resultplot.Xunit = "hz"
@@ -312,7 +312,7 @@ func (plot *DatatoPlot) CPlot(db *gorm.DB, tableprefix string, fid string, iid s
 	var hd1f, hd2f []float32
 	// var count int64
 	// sub := db.Table(dtable).Where("time_set <? and time_set >= ?", etime, stime).Where("measuredefine=?", data.Measuredefine).Count(&count)
-
+	
 	//按全局的查询条件限制趋势的时间范围
 	sub2 := db.Table(dtable).Where("point_uuid=?", data.PointUUID).Order("time_set").
 		Where("time_set > ? and time_set<=?", data.TimeSet, etime).Where("measuredefine=?", data.Measuredefine)
@@ -349,12 +349,12 @@ func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 	for k, v := range plot.Currentplot {
 		ppmwcid, pmwname, _, err := PointtoFactory(db, v.PointId)
 		if err != nil {
-
+			
 			return err
 		}
 		plot.Currentplot[k].Legend = pmwname[0] + "_" + pmwname[2] + "_" + pmwname[3]
 		fid := ppmwcid[2]
-
+		
 		stamp1, err := time.ParseInLocation("2006-01-02 15:04:05", v.Limit.Starttime, time.Local)
 		if err != nil {
 			return err
@@ -363,7 +363,7 @@ func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 		if err != nil {
 			return err
 		}
-
+		
 		var tempd []Data
 		var point Point
 		db.Table("point").Where("id=?", v.PointId).Select("uuid").First(&point)
@@ -407,7 +407,7 @@ func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string
 		sub := db.Table("data_"+fid).
 			Where("point_uuid=?", point.UUID).
 			Order("time_set desc").Limit(100)
-
+		
 		err = db.Table("(?) as d", sub).Order("time_set").Select("id", "time_set", "rmsvalue").Find(&tempd).Error
 		if err != nil {
 			return err
@@ -463,7 +463,7 @@ func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
 	}
 	fid := ppmwcid[2]
 	pdata.Status = 1 //默认为1.正常
-
+	
 	//写入数据库
 	if strings.ToUpper(pdata.Datatype) == "TACH" {
 		err = db.Transaction(func(tx *gorm.DB) error {
@@ -560,7 +560,7 @@ func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
 	if err != nil {
 		return err
 	}
-
+	
 	//另外线程 故障诊断 加入goroutine
 	go func() {
 		//TODO DEBUG 报警 报警go进程，不耽误数据导入？
@@ -568,9 +568,9 @@ func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
 		if err != nil {
 			modlog.Error("频带报警出错。err:" + err.Error())
 		}
-
+		
 	}()
-
+	
 	return nil
 }
 
@@ -625,7 +625,7 @@ func DataAlert_2(db *gorm.DB, pdata Data, fid string, ipport string) (err error)
 		}
 		levels = append(levels, a)
 	}
-
+	
 	//TODO 故障树自动报警
 	if machine.TreeAlertSet {
 		mlevel, err := TreeAlert(db, pdata, ipport)
@@ -684,7 +684,7 @@ func FindDataHistory(db *gorm.DB, c echo.Context, datatable string, m Limit, fid
 		m.MaxRpm = 999999
 	}
 	DataLimit = &m.LimitCondition
-
+	
 	var point Point
 	db.Table("point").Where("id=?", id).Select("uuid").First(&point)
 	sub := db.Table(datatable+fid).Where("point_uuid=?", point.UUID).
@@ -693,7 +693,7 @@ func FindDataHistory(db *gorm.DB, c echo.Context, datatable string, m Limit, fid
 	if m.Freq != "" {
 		sub = sub.Where("sample_freq =?", m.Freq)
 	}
-
+	
 	if m.Datatype != "" {
 		sub.Where("datatype =?", m.Datatype)
 	}
@@ -710,7 +710,7 @@ func FindDataHistory(db *gorm.DB, c echo.Context, datatable string, m Limit, fid
 	for k := range d {
 		d[k].Time = TimetoStr(d[k].TimeSet).Format("2006-01-02 15:04:05")
 	}
-
+	
 	type returnpage struct {
 		Count    int64      `json:"count,string"`
 		Children []Datainfo `json:"children"`

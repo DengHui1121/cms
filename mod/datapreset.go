@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"gorm.io/gorm"
@@ -133,7 +133,7 @@ func ReadCSVfile(file multipart.File) (info string, data []byte, err error) {
 		bdata := []byte(strings.TrimRight(csvdata[0], "0") + " ")
 		buffer.Write(bdata)
 	}
-
+	
 	return info, buffer.Bytes(), nil
 }
 
@@ -147,11 +147,11 @@ func ReadTXTfile(file multipart.File) (info string, data []byte, err error) {
 	} else {
 		info = strings.TrimSpace(ConvertGBK2Str(info))
 	}
-
+	
 	if err != nil {
 		return info, nil, err
 	}
-
+	
 	//* 处理数据位数，依次写进buffer，最后存进数据库
 	var buffer bytes.Buffer
 	for {
@@ -227,7 +227,7 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte) error {
 	if len([]rune(str[9])) != 14 {
 		return errors.New("时间格式错误，应包含年月日时分秒14位数。")
 	}
-
+	
 	ddtime, err := time.ParseInLocation("20060102150405", str[9], time.Local)
 	if err != nil {
 		return err
@@ -251,14 +251,13 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte) error {
 }
 
 // * 调用分析算法exe  windows
-
 func (dbconfig *GormConfig) DataAnalysis(path string, arg ...string) ([]string, error) {
 	//分析
 	// cmd := exec.Command(path, dbconfig.Addr, dbconfig.Admin, dbconfig.Password, dbconfig.Schema, dbconfig.Port,datatable, resulttable, dataid, arg, shmname)
 	arg2 := []string{dbconfig.Addr, dbconfig.Admin, dbconfig.Password, dbconfig.Schema, dbconfig.Port}
 	arg2 = append(arg2, arg...)
 	cmd := exec.Command(path, arg2...)
-
+	
 	var str []string
 	buf, err := cmd.Output()
 	//两种系统换行处理
@@ -305,6 +304,7 @@ func (data *Data) DataAnalysis_2(db *gorm.DB, ipport string, fid string) (err er
 		BV6:       data.BandValue6,
 	}
 	postBody, err := json.Marshal(postData)
+	fmt.Println(postBody)
 	if err != nil {
 		return err
 	}
@@ -407,7 +407,7 @@ func BandUpdate(db *gorm.DB, pdata *Data, bband []alert.Band) {
 			//TODO 解析到对应结构体
 			databv[fmt.Sprintf("bv%v", k+1)] = newrange
 		}
-
+		
 	}
 	// var edata Data
 	MaptoStruct(databv, pdata)
