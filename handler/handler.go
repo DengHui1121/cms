@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	
+
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -86,7 +86,7 @@ func UserOption(c echo.Context) error {
 	}
 	var f interface{}
 	var existuser mod.User
-	
+
 	switch opt {
 	case "info":
 		if existuser.Password != mm.Password {
@@ -112,15 +112,15 @@ func UserOption(c echo.Context) error {
 			ErrCheck(c, returnData, err, "已有该账号名")
 			return err
 		}
-	
+
 	case "delete":
-		
+
 		err = db.Table("user").Unscoped().Delete(&mod.User{}, mm.ID).Error
 	case "list":
 		l := c.QueryParam("level")
 		var userlist []mod.User
 		var publicuserlist []mod.PublicUser
-		
+
 		err = db.Table("user").Where("level > ?", l).
 			Select("id", "username", "level").
 			Scan(&userlist).Error
@@ -226,7 +226,7 @@ func FindAll(c echo.Context) error {
 		ErrCheck(c, returnData, err, c.Request().URL.String()+" 查找信息失败")
 		return err
 	}
-	
+
 	for _, v := range f {
 		for _, wv := range v.Windfarms {
 			for _, mv := range wv.Machines {
@@ -252,9 +252,9 @@ func FindAll(c echo.Context) error {
 						}
 						mod.StatusCheck(ptv.ID, "part", "point", db)
 					}
-					
+
 				}
-				
+
 			}
 		}
 	}
@@ -287,7 +287,7 @@ func FindTree(c echo.Context) error {
 			err = db.Table("factory").Omit("created_at", "updated_at").Find(&ff).Error
 			f = ff
 		}
-	
+
 	case "windFields":
 		var ff mod.Factory
 		err = db.Table("factory").Omit("created_at", "updated_at").Preload(clause.Associations).
@@ -416,7 +416,7 @@ func FindTree(c echo.Context) error {
 		m.MachineName = pmwname[2]
 		m.WindfarmName = pmwname[3]
 		m.FactoryName = pmwname[4]
-		
+
 		f = m
 	case "alerts":
 		type Tempalerts struct {
@@ -476,7 +476,7 @@ func FindAlert(c echo.Context) error {
 		var ai mod.AlertInfo
 		ai.SearchBox = c.QueryParam("search_box")
 		var temp []string = make([]string, 0)
-		
+
 		sub := db.Table("alert").Group(ai.SearchBox).Select(ai.SearchBox)
 		if ai.SearchBox == "type" {
 			sub.Not("type =? OR type = ?", "故障树", "频带幅值").Scan(&temp)
@@ -504,7 +504,7 @@ func FindAlert(c echo.Context) error {
 		ai.Options = temp
 		f = ai.Options
 	}
-	
+
 	if err != nil {
 		ErrCheck(c, returnData, err, c.Request().URL.String()+" 查找信息失败")
 		return err
@@ -555,7 +555,7 @@ func UpdateInfo(c echo.Context) error {
 	var count int64
 	mm := make(map[string]interface{})
 	var mmt interface{}
-	
+
 	id := c.QueryParam("id")
 	// iid, bid := GetId(id)
 	// uiid, _ := strconv.ParseUint(iid, 10, 64)
@@ -589,7 +589,7 @@ func UpdateInfo(c echo.Context) error {
 			Where("factory_uuid = ? AND name = ?", parent, m.Name).Count(&count)
 		mmt = m
 		table = "windfarm"
-	
+
 	case "fan":
 		var m mod.Machine
 		mod.MaptoStruct(mm, &m)
@@ -805,7 +805,7 @@ func FileUpload(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
 	var file *multipart.FileHeader
-	
+
 	file, err = c.FormFile("fan_parts")
 	if err != nil {
 		ErrCheck(c, returnData, err, "原文件上传失败")
@@ -823,14 +823,14 @@ func FileUpload(c echo.Context) error {
 		return err
 	}
 	defer src.Close()
-	
+
 	m, err := mod.MachineFileUpdate(src, db)
 	if err != nil {
 		ErrCheck(c, returnData, err, "风机文件导入失败")
 		return err
 	}
 	ErrNil(c, returnData, m, "文件读取成功")
-	
+
 	return nil
 }
 
@@ -842,7 +842,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 		file, err := c.FormFile("data_upload")
 		if err != nil {
 			ErrCheck(c, returnData, err, "原文件上传失败")
-			
+
 			return err
 		}
 		src, err := file.Open()
@@ -867,7 +867,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 			ErrCheck(c, returnData, err, "未找到测点")
 			return err
 		}
-		
+
 		err = mod.CheckData(db, &pdata)
 		if pdata.ID != 0 {
 			ErrNil(c, returnData, true, "已有该数据。")
@@ -911,7 +911,7 @@ func OverMPointData(ipport string) echo.HandlerFunc {
 			ErrCheck(c, returnData, err, "导入文件失败")
 			return err
 		}
-		
+
 		// 找测点并导入数据库
 		var pdata mod.Data
 		err = pdata.DataInfoGet(db, info, filedata)
@@ -971,14 +971,14 @@ func DeleteInfo(c echo.Context) error {
 			Joins("right join windfarm on windfarm.factory_uuid=factory.uuid").
 			Joins("right join machine on windfarm.uuid=machine.windfarm_uuid").
 			Select("machine.id").Find(&fid)
-	
+
 	case "windField":
 		dst = new(mod.Windfarm)
 		table = "windfarm"
 		db.Table("windfarm").Where("windfarm.id=?", id).
 			Joins("right join machine on windfarm.uuid=machine.windfarm_uuid").
 			Select("machine.id").Find(&fid)
-	
+
 	case "fan":
 		dst = new(mod.Machine)
 		table = "machine"
@@ -1004,7 +1004,7 @@ func DeleteInfo(c echo.Context) error {
 	case "measuringPoint":
 		dst = new(mod.Point)
 		table = "point"
-	
+
 	case "characteristic":
 		dst = new(mod.Property)
 		table = "property"
@@ -1047,7 +1047,7 @@ func DeleteInfo(c echo.Context) error {
 			}
 		}
 	}
-	
+
 	if err != nil {
 		ErrCheck(c, returnData, err, "删除失败。")
 		return err
@@ -1063,12 +1063,12 @@ func DeleteStd(c echo.Context) error {
 	var info []uint
 	var model interface{}
 	returnData := mod.ReturnData{}
-	
+
 	var mm map[string]string
 	json.NewDecoder(c.Request().Body).Decode(&mm)
 	i := mm["upper"]
 	ii := mm["version"]
-	
+
 	switch i {
 	case "fan":
 		table = "machine_std"
@@ -1110,7 +1110,7 @@ func DeleteStd(c echo.Context) error {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		ErrCheck(c, returnData, err, "删除错误")
 	}
@@ -1225,7 +1225,7 @@ func AnalyseDataPlot(exepath string) echo.HandlerFunc {
 		//传输
 		var shmname string = strconv.Itoa(int(time.Now().Local().UnixNano()))
 		var s mod.ShmInfo = mod.ShmInfo{Name: shmname, Count: 8000}
-		
+
 		ppmwcid, _, _, err := mod.PointtoFactory(db, pid)
 		if err != nil {
 			ErrCheck(c, returnData, err, "调取数据错误")
@@ -1292,12 +1292,12 @@ func AnalyseDataFunc(c echo.Context) error {
 func FindStd(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
-	
+
 	var table string
 	var info interface{}
 	i := c.QueryParam("upper")
 	ii := c.QueryParam("version")
-	
+
 	switch i {
 	case "fan":
 		table = "machine_std"
@@ -1427,7 +1427,7 @@ func UpdateStatus(c echo.Context) error {
 		if _, _, err = mod.StatusCheck(ppmwcid[2], "windfarm", "machine", db); err != nil {
 			break
 		}
-		
+
 	}
 	if err != nil {
 		ErrCheck(c, returnData, err, "更新状态错误")
@@ -1478,7 +1478,7 @@ func GetStatisticsContent(c echo.Context) error {
 		db.Table("(?) as tree", sub).Distinct("factory_name").Select("factory_name").Limit(1).Scan(&sc.CompanyName)
 		db.Table("(?) as tree", sub).Distinct("windfarm_id").Count(&sc.WindfieldNumber)
 		db.Table("(?) as tree", sub).Distinct("machine_id").Count(&sc.FanNumber)
-	
+
 	case "2": //风场
 		sub = sub.Where("windfarm.id=?", id)
 		db.Table("(?) as tree", sub).Distinct("windfarm_name").Select("windfarm_name").Limit(1).Scan(&sc.WindfieldName)
@@ -1578,7 +1578,7 @@ func GetPartFault(c echo.Context) error {
 	var returnData mod.ReturnData
 	fid := c.QueryParam("id")
 	keyword := c.QueryParam("keyword")
-	
+
 	fcs, err := mod.MonthPartFault(db, fid, keyword)
 	if err != nil {
 		ErrCheck(c, returnData, err, "查询错误")
@@ -1592,7 +1592,7 @@ func GetFaultLogs(c echo.Context) error {
 	var returnData mod.ReturnData
 	wid := c.QueryParam("id")
 	keyword := c.QueryParam("keyword")
-	
+
 	type LogAlert struct {
 		FanName string `json:"fan_name"`
 		mod.Alert
@@ -1809,7 +1809,7 @@ func DownloadOutput(c echo.Context) error {
 		ErrCheck(c, rd, err, "file is not exist")
 	}
 	return c.File(filename)
-	
+
 }
 
 var (
@@ -1855,7 +1855,7 @@ func AlertBroadcast(c echo.Context) error {
 		mainlog.Error("ws发送失败 %v", err)
 	}
 	wschannel := make(chan struct{})
-	
+
 	//之后，等待通道的报警信息
 	go func() {
 		for {
@@ -1924,19 +1924,15 @@ func AlertConfirm(c echo.Context) error {
 	return err
 }
 
-func Handler(c echo.Context) error {
+// FactoryDataUpdateHandler 厂家数据上传接口
+func FactoryDataUpdateHandler(c echo.Context) error {
 	var returnData mod.ReturnData
 	var request mod.Request
 	var err error
-	
+
 	if err = c.Bind(&request); err != nil {
 		return err
 	}
 	ErrNil(c, returnData, nil, "成功")
-	return nil
-}
-
-func GetValidValuesOfPart(c echo.Context) error {
-	
 	return nil
 }

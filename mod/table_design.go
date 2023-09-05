@@ -158,13 +158,21 @@ type Machine struct {
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`
 	// AlertVersion    string  `json:"alert_version,omitempty"`
-	FanVersion  string  `json:"version"` //风机标准
-	TreeVersion string  `json:"tree_version"`
-	Unit        string  `json:"unit" toml:"unit"`
-	Desc        string  `json:"fan_name"`
-	BuiltTime   string  `json:"time"`
-	Status      uint8   `gorm:"type:tinyint;default:0" json:"status,string"`
-	Health      float64 `gorm:"-" json:"health"` //全生命周期
+	FanVersion  string `json:"version"` //风机标准
+	TreeVersion string `json:"tree_version"`
+	Unit        string `json:"unit" toml:"unit"`
+	Desc        string `json:"fan_name"`
+	BuiltTime   string `json:"time"`
+	Status      uint8  `gorm:"type:tinyint;default:0" json:"status,string"`
+	/*Genfactory      string  `json:"genfactory"`      //发电机厂家
+	Gentype         string  `json:"gentype"`         //发电机型号
+	Gearfactory     string  `json:"gearfactory"`     //齿轮箱厂家
+	Geartype        string  `json:"geartype"`        //齿轮箱型号
+	Mainshaffactory string  `json:"mainshaffactory"` //主轴厂家
+	Mainshaftype    string  `json:"mainshaftype"`    //主轴型号
+	Bladefactory    string  `json:"bladefactory"`    //叶片厂家
+	Bladetype       string  `json:"bladetype"`       //叶片型号*/
+	Health float64 `gorm:"-" json:"health"` //全生命周期
 	//一年内故障次数
 	TotalAlertCount int    `json:"total_alert_count"  gorm:"-"`
 	Parts           []Part `json:"children" gorm:"foreignKey:MachineUUID;references:UUID"`
@@ -552,7 +560,7 @@ type Alert struct {
 	Location         string            `json:"location"`           //部件
 	PartType         string            `json:"-" gorm:"-"`
 	Time             string            `json:"time" gorm:"-"` //时间
-	Level            uint8             `gorm:"type:tinyint" json:"level"`
+	Level            uint8             `gorm:"type:tinyint;comment:'报警等级'" json:"level"`
 	Type             string            `json:"type" `     //报警类型 故障树、频道幅值···// TODO 可自定义增加
 	Strategy         string            `json:"strategy" ` //策略描述 如有效值报警
 	Desc             string            `json:"desc"`      //报警描述
@@ -734,4 +742,67 @@ type Wave_Update struct {
 	//包络
 	EnvelopSet            string `json:"-"`                           //包络设置
 	SpectrumEnvelopeFloat []byte `json:"-" gorm:"spectrumE_envelope"` //包络频谱
+}
+type WorkCondition struct {
+	WindSp1s   float64 //风速1s
+	RotorSpeed float64 //电机转速
+	PitchAngle float64 //桨叶角度
+}
+type SubdivisionAlarm struct {
+}
+type AlarmInfo struct {
+	ComponentName        string             `json:"ComponentName"`   //ComponentName 部套名称
+	AlarmType            int64              `json:"AlarmType"`       //AlarmType 报警类型
+	AlarmUpdateTime      string             `json:"AlarmUpdateTime"` //AlarmUpdateTime 报警时间
+	SubdivisionAlarmList []SubdivisionAlarm //细分故障列表
+	AlarmDegree          int64              `json:"AlarmDegree"` //AlarmDegree 故障报警程度
+}
+
+type Eigenvalue struct {
+	RmsValue  float32 `json:"RmsValue"`  //有效值
+	Indexkur  float32 `json:"Indexkur"`  //峭度
+	Indexi    float32 `json:"Indexi"`    //脉冲
+	Indexl    float32 `json:"Indexl"`    //裕度
+	Indexpp   float32 `json:"Indexpp"`   //峰峰值指标
+	Indexxr   float32 `json:"Indexxr"`   //方根幅值指标
+	Indemax   float32 `json:"Indemax"`   //最大值
+	Indemin   float32 `json:"Indemin"`   //最小值
+	Indexmean float32 `json:"Indexmean"` //均值
+	Indexeven float32 `json:"Indexeven"` //平均幅值指标
+	Indexc    float32 `json:"Indexc"`    //峰值指标
+	Indexsk   float32 `json:"Indexsk"`   //歪度指标
+}
+
+type ChannelContentList struct {
+	ECSChannel         int64  `json:"ECSChannel"`         //通道编号
+	WaveLength         int64  `json:"WaveLength"`         //波形长度
+	SignalType         int64  `json:"SignalType"`         //信号类型
+	WaveType           int64  `json:"WaveType"`           //波形类型
+	UpperFreq          string `json:"UpperFreq"`          //波形上限频率
+	LowerFreq          string `json:"LowerFreq"`          //波形下限频率
+	ComponentName      string `json:"ComponentName"`      //检测部套简称
+	LocationSection    string `json:"LocationSection"`    //检测部套测点位置
+	SampleRate         string `json:"SampleRate"`         //采样率
+	WaveDefDescription string `json:"WaveDefDescription"` //波形定义描述
+	AcquisitionTime    string `json:"AcquisitionTime"`    //波形采样时间
+	WaveData           string `json:"WaveData"`           //波形数据
+	ChannelAlarmType   int64  `json:"ChannelAlarmType"`   //通道报警类型
+	Eigenvalue         `json:"Eigenvalue"`                //通道特征值
+}
+
+type CMSData struct {
+	DeviceId           string `json:"DeviceId"`     //设备编号，编号确定后不能更改
+	DeviceType         string `json:"DeviceType"`   //设备名称，可以修改
+	DeviceIP           string `json:"DeviceIP"`     //设备通信地址/IP地址
+	DeviceStatus       string `json:"DeviceStatus"` //设备状态
+	StopLevel          int64  `json:"StopLevel"`    //CMS设备给的报警等级
+	AlarmInfo          `json:"AlarmInfo"`           //报警信息
+	ChannelContentList `json:"ChannelContentList"`  //通道信息
+}
+type Request struct {
+	TurbineName   string `json:"TurbineName"` //风机名
+	StopLevel     int64  `json:"StopLevel"`   //预警停机等级
+	DeviceTime    int64  `json:"DeviceTime"`  //系统时间/设备时间
+	WorkCondition `json:"WorkCondition"`      //运行工况
+	CMSData       `json:"CMSData"`            //CMS数据
 }

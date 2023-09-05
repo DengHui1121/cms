@@ -97,7 +97,7 @@ func Start() {
 	})
 	e.Static("/", "./dist")
 	
-	e.POST("/ais/openapi/v1/:farmid/states/:turbineId", Handler) //厂家检测数据上传接口
+	e.POST("/ais/openapi/v1/:farmid/states/:turbineId", FactoryDataUpdateHandler) //厂家检测数据上传接口
 	
 	cmsbasic := e.Group("api/v1/")
 	cmsbasic.POST("login", Login)             //登录

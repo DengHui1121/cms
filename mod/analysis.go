@@ -365,6 +365,7 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 		return err
 	}
 	var temp Temp
+	
 	db.Table("temp").Create(&temp)
 	switch atype {
 	case "envelop":
