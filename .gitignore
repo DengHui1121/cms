@@ -3,3 +3,9 @@ vendor/
 xncsm_3.sql
 dist/
 vendor.zip
+cmsProgram.exe~
+.idea/
+log/
+analysis/
+cmsProgram.exe
+main.exe

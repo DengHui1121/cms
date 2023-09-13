@@ -2,11 +2,14 @@ package mod
 
 import (
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/mozillazg/go-pinyin"
-	"gorm.io/gorm"
 	"main/alert"
+	"strconv"
 	"time"
+
+	"github.com/mozillazg/go-pinyin"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type User struct {
@@ -88,7 +91,7 @@ type Windfarm struct {
 	District    string  `gorm:"not null" json:"district"`
 	Longitude   float32 `gorm:"not null" json:"longitude,string"`
 	Latitude    float32 `gorm:"not null" json:"latitude,string"`
-	
+
 	Status   uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
 	Machines []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
 	//一年内故障次数
@@ -110,7 +113,7 @@ func (u *Windfarm) AfterFind(tx *gorm.DB) error {
 		u.FactoryID = 0
 		return err
 	}
-	
+
 	var statuss []uint
 	tx.Table("windfarm").Joins("join machine on machine.windfarm_uuid = windfarm.uuid").Where("windfarm.id=?", u.ID).Select("machine.status").Scan(&statuss)
 	_, max := MaxStatus(statuss)
@@ -146,7 +149,7 @@ func (u *Windfarm) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
-//fan_name和desc互换。fan_name:业主定义风机名，desc：数据导入的索引
+// fan_name和desc互换。fan_name:业主定义风机名，desc：数据导入的索引
 type Machine struct {
 	Model        `gorm:"embedded"`
 	ID           uint   `gorm:"primarykey" json:"id,string"`
@@ -158,21 +161,21 @@ type Machine struct {
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`
 	// AlertVersion    string  `json:"alert_version,omitempty"`
-	FanVersion  string `json:"version"` //风机标准
-	TreeVersion string `json:"tree_version"`
-	Unit        string `json:"unit" toml:"unit"`
-	Desc        string `json:"fan_name"`
-	BuiltTime   string `json:"time"`
-	Status      uint8  `gorm:"type:tinyint;default:0" json:"status,string"`
-	/*Genfactory      string  `json:"genfactory"`      //发电机厂家
+	FanVersion      string  `json:"version"` //风机标准
+	TreeVersion     string  `json:"tree_version"`
+	Unit            string  `json:"unit" toml:"unit"`
+	Desc            string  `json:"fan_name"`
+	BuiltTime       string  `json:"time"`
+	Status          uint8   `gorm:"type:tinyint;default:0" json:"status,string"`
+	Genfactory      string  `json:"genfactory"`      //发电机厂家
 	Gentype         string  `json:"gentype"`         //发电机型号
 	Gearfactory     string  `json:"gearfactory"`     //齿轮箱厂家
 	Geartype        string  `json:"geartype"`        //齿轮箱型号
 	Mainshaffactory string  `json:"mainshaffactory"` //主轴厂家
 	Mainshaftype    string  `json:"mainshaftype"`    //主轴型号
 	Bladefactory    string  `json:"bladefactory"`    //叶片厂家
-	Bladetype       string  `json:"bladetype"`       //叶片型号*/
-	Health float64 `gorm:"-" json:"health"` //全生命周期
+	Bladetype       string  `json:"bladetype"`       //叶片型号
+	Health          float64 `gorm:"-" json:"health"` //全生命周期
 	//一年内故障次数
 	TotalAlertCount int    `json:"total_alert_count"  gorm:"-"`
 	Parts           []Part `json:"children" gorm:"foreignKey:MachineUUID;references:UUID"`
@@ -205,7 +208,7 @@ func (u *Machine) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-//* 一个月以内无数据为无数据
+// * 一个月以内无数据为无数据
 func (u *Machine) AfterFind(tx *gorm.DB) error {
 	err := tx.Table("windfarm").Where("uuid=?", u.WindfarmUUID).Pluck("id", &u.WindfarmID).Error
 	if err != nil {
@@ -226,7 +229,7 @@ func (u *Machine) AfterFind(tx *gorm.DB) error {
 	if subfv != "" {
 		u.FanVersion = subfv
 	}
-	
+
 	//一年内故障次数
 	stime := time.Now().AddDate(-1, 0, 0)
 	etime := time.Now()
@@ -385,7 +388,7 @@ func (u *Point) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
-//取消测点标注
+// 取消测点标注
 type PointStd struct {
 	Model     `gorm:"embedded"`
 	ID        uint   `gorm:"primarykey" json:"id,string"`
@@ -395,7 +398,7 @@ type PointStd struct {
 	Direction string `json:"direction"` //TODO 前端需要增加相关字段显示
 }
 
-//* 故障统计数据
+// * 故障统计数据
 type FanPartLevelAlertReport struct {
 	//有故障后实时更新
 	AlertCount_1 uint32 `gorm:"type:int unsigned;default:0"` //等级1 正常
@@ -404,7 +407,7 @@ type FanPartLevelAlertReport struct {
 	AlertCount_3 uint32 `gorm:"type:int unsigned;default:0"` //等级3 报警
 }
 
-//TODO 风场月统计
+// TODO 风场月统计
 type WindfarmMonthReport struct {
 	Model               `gorm:"embedded"`
 	ID                  uint `gorm:"primarykey" json:"id,string"`
@@ -423,7 +426,7 @@ type WindfarmMonthReport struct {
 	LevelAlertBlade     FanPartLevelAlertReport `gorm:"embedded;embeddedPrefix:blade_"`
 }
 
-//TODO 风场日统计
+// TODO 风场日统计
 type WindfarmDailyReport struct {
 	Model               `gorm:"embedded"`
 	ID                  uint `gorm:"primarykey" json:"id,string"`
@@ -440,7 +443,7 @@ type WindfarmDailyReport struct {
 	LevelAlertBlade     FanPartLevelAlertReport `gorm:"embedded;embeddedPrefix:blade_"`
 }
 
-//TODO 风机月统计
+// TODO 风机月统计
 type MachineMonthReport struct {
 	Model               `gorm:"embedded"`
 	ID                  uint `gorm:"primarykey" json:"id,string"`
@@ -460,7 +463,7 @@ type MachineMonthReport struct {
 	LevelAlertBlade     FanPartLevelAlertReport `gorm:"embedded;embeddedPrefix:blade_"`
 }
 
-//TODO 风机日统计
+// TODO 风机日统计
 type MachineDailyReport struct {
 	Model               `gorm:"embedded"`
 	ID                  uint `gorm:"primarykey" json:"id,string"`
@@ -500,6 +503,13 @@ type Data struct {
 	BandValue4    string  `json:"bv4"`                                         //预留：频带值4
 	BandValue5    string  `json:"bv5"`                                         //预留：频带值5
 	BandValue6    string  `json:"bv6"`                                         //预留：频带值6
+	Power         float32 `json:"power"`                                       //功率
+	WindSpeed     float32 `json:"windspeed"`                                   //风速
+	Yew           float32 `json:"yew"`                                         //偏航
+	Pitch1        float32 `json:"pitch1"`                                      //浆角1
+	Pitch2        float32 `json:"pitch2"`                                      //浆角2
+	Pitch3        float32 `json:"pitch3"`                                      //浆角3
+	FaultTag      int     `json:"faulttag"`                                    //故障标签
 	Result        `json:"result" gorm:"embedded"`
 	Wave          Wave    `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
 	Alert         []Alert `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
@@ -515,27 +525,35 @@ func (u *Data) AfterFind(tx *gorm.DB) error {
 }
 
 type Result struct {
-	Rmsvalue  float32 `json:"rmsvalue"`  //有效值
-	Indexkur  float32 `json:"indexkur"`  //峭度指标
-	Indexi    float32 `json:"indexi"`    //脉冲指标
-	Indexk    float32 `json:"indexk"`    //波形指标
-	Indexl    float32 `json:"indexl"`    //裕度指标
-	Indexsk   float32 `json:"indexsk"`   //歪度指标
-	Indexc    float32 `json:"indexc"`    //峰值指标
-	Indexxr   float32 `json:"indexxr"`   //方根赋值
-	Indexmax  float32 `json:"indexmax"`  //最大值
-	Indexmin  float32 `json:"indexmin"`  //最小值
-	Indexmean float32 `json:"indexmean"` //均值
-	Indexeven float32 `json:"indexeven"` //平均赋值
-	Brms1     float32 `json:"brms1"`     //预留：频带值1的有效值
-	Brms2     float32 `json:"brms2"`     //预留：频带值2的有效值
-	Brms3     float32 `json:"brms3"`     //预留：频带值3的有效值
-	Brms4     float32 `json:"brms4"`     //预留：频带值4的有效值
-	Brms5     float32 `json:"brms5"`     //预留：频带值5的有效值
-	Brms6     float32 `json:"brms6"`     //预留：频带值6的有效值
+	Rmsvalue     float32 `json:"rmsvalue"`     //有效值
+	Indexkur     float32 `json:"indexkur"`     //峭度指标
+	Indexi       float32 `json:"indexi"`       //脉冲指标
+	Indexk       float32 `json:"indexk"`       //波形指标
+	Indexl       float32 `json:"indexl"`       //裕度指标
+	Indexsk      float32 `json:"indexsk"`      //歪度指标
+	Indexc       float32 `json:"indexc"`       //峰值指标
+	Indexxr      float32 `json:"indexxr"`      //方根赋值
+	Indexmax     float32 `json:"indexmax"`     //最大值
+	Indexmin     float32 `json:"indexmin"`     //最小值
+	Indexmean    float32 `json:"indexmean"`    //均值
+	Indexeven    float32 `json:"indexeven"`    //平均赋值
+	Indexp       float32 `json:"indexp"`       //峰值
+	Indexpp      float32 `json:"indexpp"`      // 峰峰值
+	MeanFre      float32 `json:"meanfre"`      //均值频率
+	SquareFre    float32 `json:"squarefre"`    //频谱均方根值
+	GravFre      float32 `json:"gravfre"`      //频谱重心
+	SecGravFre   float32 `json:"secgravfre"`   //二阶重心
+	GravRatio    float32 `json:"gravratio"`    //重心比
+	StandDeviate float32 `json:"standdeviate"` //标准偏差频率
+	Brms1        float32 `json:"brms1"`        //预留：频带值1的有效值
+	Brms2        float32 `json:"brms2"`        //预留：频带值2的有效值
+	Brms3        float32 `json:"brms3"`        //预留：频带值3的有效值
+	Brms4        float32 `json:"brms4"`        //预留：频带值4的有效值
+	Brms5        float32 `json:"brms5"`        //预留：频带值5的有效值
+	Brms6        float32 `json:"brms6"`        //预留：频带值6的有效值
 }
 
-//wave的uuid与data的uuid相同 一对一
+// wave的uuid与data的uuid相同 一对一
 type Wave struct {
 	ID            uint   `gorm:"primarykey" json:"id,string"`
 	DataUUID      string `json:"-"`
@@ -556,7 +574,7 @@ type Alert struct {
 	PointUUID        string            `gorm:"unique_index" json:"-"`
 	Factory          string            `json:"company" gorm:"-"`   //公司名
 	Windfarm         string            `json:"windfield" gorm:"-"` //风场名
-	Machine          string            `json:"fan" gorm:"-"`       //风机名
+	Machine          string            `json:"fa" gorm:"-"`        //风机名
 	Location         string            `json:"location"`           //部件
 	PartType         string            `json:"-" gorm:"-"`
 	Time             string            `json:"time" gorm:"-"` //时间
@@ -576,7 +594,7 @@ type Alert struct {
 	Handle           uint8             `gorm:"type:tinyint" json:"handle"`    //0为红色表示未处理，1为绿色表示已处理。
 	Broadcast        uint8             `gorm:"type:tinyint" json:"broadcast"` //是否通知给了前端 0/1
 	BroadcastMessage string            `gorm:"-" json:"message"`              //是否通知给了前端 0/1
-	
+
 }
 
 func (u *Alert) AfterFind(tx *gorm.DB) error {
@@ -605,7 +623,7 @@ type AlertInfo struct {
 	Options   []string `json:"options"`    //下拉菜单选项
 }
 
-//TODO
+// TODO
 type Datainfo struct {
 	ID            uint `gorm:"primarykey" json:"id,string"`
 	PointID       uint `json:"point_id,string"`
@@ -640,7 +658,7 @@ type ReturnData struct {
 	Message string      `json:"message,omitempty"`
 }
 
-//筛选条件
+// 筛选条件
 type LimitCondition struct {
 	MinRpm        float32 `json:"min_rpm" query:"min_rpm"`
 	MaxRpm        float32 `json:"max_rpm" query:"max_rpm"`
@@ -671,12 +689,12 @@ type SinglePlot struct {
 	Yunit  string    `json:"y_unit"`
 }
 
-//单测点分析绘图
+// 单测点分析绘图
 type AnalysetoPlot struct {
 	Plots []SinglePlot `json:"analyse"`
 }
 
-//单测点数据绘图
+// 单测点数据绘图
 type DatatoPlot struct {
 	Originplot  SinglePlot  `json:"origin"`
 	Resultplot  SinglePlot  `json:"result"`
@@ -684,7 +702,7 @@ type DatatoPlot struct {
 	Data        Data        `json:"data"`
 }
 
-//对比图
+// 对比图
 type MultiDatatoPlot struct {
 	Currentplot []CurrentPlot `json:"current" query:"current"`
 }
@@ -711,7 +729,7 @@ type Temp struct {
 
 type Data_Update struct {
 	Model         `gorm:"embedded" `
-	ID            uint    `gorm:"primarykey" json:"id,string"`
+	ID            uint    `gorm:"primary" json:"id,string"`
 	PointID       uint    `gorm:"-" json:"point_id,string"`
 	PointUUID     string  `gorm:"unique_index" json:"-"`
 	Datatag       int8    `gorm:"type:tinyint;default:1" json:"datatag"`       //不压缩 赋值为1
@@ -743,66 +761,192 @@ type Wave_Update struct {
 	EnvelopSet            string `json:"-"`                           //包络设置
 	SpectrumEnvelopeFloat []byte `json:"-" gorm:"spectrumE_envelope"` //包络频谱
 }
+
 type WorkCondition struct {
-	WindSp1s   float64 //风速1s
-	RotorSpeed float64 //电机转速
-	PitchAngle float64 //桨叶角度
+	WindSp1s    string `json:"WindSp1S"`    //风速1s
+	ActivePower string `json:"ActivePower"` //功率
+	RotorSpeed  string `json:"RotorSpeed"`  //电机转速
+	PitchAngle  string `json:"PitchAngle"`  //桨叶角度
+	YawState    string `json:"YawState"`    //偏航
 }
 type SubdivisionAlarm struct {
 }
-type AlarmInfo struct {
-	ComponentName        string             `json:"ComponentName"`   //ComponentName 部套名称
-	AlarmType            int64              `json:"AlarmType"`       //AlarmType 报警类型
-	AlarmUpdateTime      string             `json:"AlarmUpdateTime"` //AlarmUpdateTime 报警时间
-	SubdivisionAlarmList []SubdivisionAlarm //细分故障列表
-	AlarmDegree          int64              `json:"AlarmDegree"` //AlarmDegree 故障报警程度
+type Alarm struct {
+	ComponentName        string             `json:"ComponentName"`        //ComponentName 部件名称
+	AlarmType            int64              `json:"AlarmType"`            //AlarmType 报警类型
+	AlarmUpdateTime      string             `json:"AlarmUpdateTime"`      //AlarmUpdateTime 报警时间
+	SubdivisionAlarmList []SubdivisionAlarm `json:"SubdivisionAlarmList"` //细分故障列表
+	AlarmDegree          int64              `json:"AlarmDegree"`          //AlarmDegree 故障报警程度
 }
 
-type Eigenvalue struct {
-	RmsValue  float32 `json:"RmsValue"`  //有效值
-	Indexkur  float32 `json:"Indexkur"`  //峭度
-	Indexi    float32 `json:"Indexi"`    //脉冲
-	Indexl    float32 `json:"Indexl"`    //裕度
-	Indexpp   float32 `json:"Indexpp"`   //峰峰值指标
-	Indexxr   float32 `json:"Indexxr"`   //方根幅值指标
-	Indemax   float32 `json:"Indemax"`   //最大值
-	Indemin   float32 `json:"Indemin"`   //最小值
-	Indexmean float32 `json:"Indexmean"` //均值
-	Indexeven float32 `json:"Indexeven"` //平均幅值指标
-	Indexc    float32 `json:"Indexc"`    //峰值指标
-	Indexsk   float32 `json:"Indexsk"`   //歪度指标
-}
-
-type ChannelContentList struct {
-	ECSChannel         int64  `json:"ECSChannel"`         //通道编号
-	WaveLength         int64  `json:"WaveLength"`         //波形长度
-	SignalType         int64  `json:"SignalType"`         //信号类型
-	WaveType           int64  `json:"WaveType"`           //波形类型
-	UpperFreq          string `json:"UpperFreq"`          //波形上限频率
-	LowerFreq          string `json:"LowerFreq"`          //波形下限频率
-	ComponentName      string `json:"ComponentName"`      //检测部套简称
-	LocationSection    string `json:"LocationSection"`    //检测部套测点位置
-	SampleRate         string `json:"SampleRate"`         //采样率
-	WaveDefDescription string `json:"WaveDefDescription"` //波形定义描述
-	AcquisitionTime    string `json:"AcquisitionTime"`    //波形采样时间
-	WaveData           string `json:"WaveData"`           //波形数据
-	ChannelAlarmType   int64  `json:"ChannelAlarmType"`   //通道报警类型
-	Eigenvalue         `json:"Eigenvalue"`                //通道特征值
+type ChannelContent struct {
+	ECSChannel         int     `json:"ECSChannel"`         //通道编号
+	WaveLength         int     `json:"WaveLength"`         //波形长度
+	SignalType         int     `json:"SignalType"`         //信号类型
+	WaveType           int     `json:"WaveType"`           //波形类型
+	UpperFreq          float32 `json:"UpperFreq"`          //波形上限频率
+	LowerFreq          float32 `json:"LowerFreq"`          //波形下限频率
+	ComponentName      string  `json:"ComponentName"`      //检测部件简称
+	LocationSection    string  `json:"LocationSection"`    //检测部件测点位置
+	SampleRate         float32 `json:"SampleRate"`         //采样率
+	WaveDefDescription int     `json:"WaveDefDescription"` //波形定义描述
+	AcquisitionTime    string  `json:"AcquisitionTime"`    //波形采样时间
+	WaveData           string  `json:"WaveData"`           //波形数据
+	ChannelAlarmType   int     `json:"ChannelAlarmType"`   //通道报警类型
+	Eigenvalue         Result  `json:"Eigenvalue"`         //通道特征值
 }
 
 type CMSData struct {
-	DeviceId           string `json:"DeviceId"`     //设备编号，编号确定后不能更改
-	DeviceType         string `json:"DeviceType"`   //设备名称，可以修改
-	DeviceIP           string `json:"DeviceIP"`     //设备通信地址/IP地址
-	DeviceStatus       string `json:"DeviceStatus"` //设备状态
-	StopLevel          int64  `json:"StopLevel"`    //CMS设备给的报警等级
-	AlarmInfo          `json:"AlarmInfo"`           //报警信息
-	ChannelContentList `json:"ChannelContentList"`  //通道信息
+	DeviceId           string           `json:"DeviceID"`           //设备编号，编号确定后不能更改
+	DeviceType         string           `json:"DeviceType"`         //设备名称，可以修改
+	DeviceIP           string           `json:"DeviceIP"`           //设备通信地址/IP地址
+	DeviceStatus       string           `json:"DeviceStatus"`       //设备状态
+	StopLevel          int64            `json:"StopLevel"`          //CMS设备给的报警等级
+	AlarmInfo          []Alarm          `json:"AlarmInfo"`          //报警信息
+	ChannelContentList []ChannelContent `json:"ChannelContentList"` //通道信息
 }
-type Request struct {
-	TurbineName   string `json:"TurbineName"` //风机名
-	StopLevel     int64  `json:"StopLevel"`   //预警停机等级
-	DeviceTime    int64  `json:"DeviceTime"`  //系统时间/设备时间
-	WorkCondition `json:"WorkCondition"`      //运行工况
-	CMSData       `json:"CMSData"`            //CMS数据
+type FactoryUpdateData struct {
+	TurbineName   string                 `json:"TurbineName"` //风机名,按风机名称排序
+	StopLevel     string                 `json:"StopLevel"`   //预警停机等级
+	DeviceTime    string                 `json:"DeviceTime"`  //系统时间/设备时间
+	WorkCondition `json:"WorkCondition"` //运行工况
+	CMSData       `json:"CMSData"`       //CMS数据
+}
+
+func (factoryData FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, turbineIdStr string) (data Data, err error) {
+
+	farmId, err := strconv.Atoi(farmIdStr)
+	if err != nil {
+		return
+	}
+
+	turbineId, err := strconv.Atoi(turbineIdStr)
+	if err != nil {
+		return
+	}
+
+	farm := Windfarm{
+		ID: uint(farmId),
+	}
+	machine := Machine{
+		ID: uint(turbineId),
+	}
+
+	if err = db.Table("windfarm").Where("id = ? ", farmId).Find(&farm).Error; err != nil {
+		return
+	}
+
+	if err = db.Table("machine").Where("id = ? ", turbineId).Preload("Parts.Points").Find(&machine).
+		Error; err != nil {
+		return
+	}
+	// data和alert相同长度，alert需要data的uuid，首先插入data到数据库中
+	tx := db.Begin()
+	//处理数据表单
+	power, _ := strconv.ParseFloat(factoryData.ActivePower, 32)
+	windSpeed, _ := strconv.ParseFloat(factoryData.WindSp1s, 32)
+	yew, _ := strconv.ParseFloat(factoryData.YawState, 32)
+	rotorSpeed, _ := strconv.ParseFloat(factoryData.RotorSpeed, 32)
+	pitch, _ := strconv.ParseFloat(factoryData.PitchAngle, 32)
+
+	data = Data{
+		Power:     float32(power),
+		Yew:       float32(yew),
+		Pitch1:    float32(pitch),
+		WindSpeed: float32(windSpeed),
+		Rpm:       float32(rotorSpeed),
+	}
+	factoryName := ""
+	tx.Table("factory").Where("id = ?", farm.FactoryID).Pluck("name", factoryName)
+	// alert := Alert{
+	// 	Windfarm: farm.Name,
+	// 	Machine:  machine.Name,
+	// 	Factory:  factoryName,
+	// 	Rpm:      float32(rotorSpeed),
+	// }
+
+	channelContentList := factoryData.CMSData.ChannelContentList
+	//alarmList := factoryData.AlarmInfo
+	signalType, waveType := "", ""
+	for i := 0; i < len(channelContentList); i++ {
+		switch channelContentList[i].SignalType {
+		case 0:
+			signalType = "加速度"
+		case 1:
+			signalType = "速度"
+		case 2:
+			signalType = "位移"
+
+		}
+
+		switch channelContentList[i].WaveType {
+		case 0:
+			waveType = "TIMEWAVE"
+		case 1:
+			waveType = "LONGTIMEWAVE"
+		case 2:
+			waveType = "TACH"
+		}
+
+		//查询测点uuid
+
+		data.Length = strconv.Itoa(channelContentList[i].WaveLength)
+		data.SampleFreq = int(channelContentList[i].SampleRate)
+		data.Datatype = waveType
+		data.Measuredefine = signalType
+		data.TimeSet, _ = StrtoTime(time.DateTime, channelContentList[i].AcquisitionTime)
+		data.Time = channelContentList[i].AcquisitionTime
+		data.Result = channelContentList[i].Eigenvalue
+		data.FaultTag = channelContentList[i].ChannelAlarmType
+
+		//插入data数据表
+		if err = tx.Table("data_" + turbineIdStr).Create(&data).Error; err != nil {
+			tx.Rollback()
+			return
+		}
+
+		//根据WaveDefDescription的值对原始波形数据进行处理。
+		var wave = Wave{
+			DataFloat: []byte(channelContentList[i].WaveData),
+			DataUUID:  data.UUID,
+		}
+
+		/*//将data数据存入wave表之后，再进行数据分析
+		switch channelContentList[i].WaveDefDescription {
+		case 0:
+			//时序波形数据
+		case 1:
+			//http://localhost:3006/data/trans/0
+			//频谱波形数据
+
+		case 3:
+			//http://localhost:3006/data/trans/1
+			//包络波形数据
+
+		}*/
+
+		if err = tx.Table("wave_" + turbineIdStr).Create(&wave).Error; err != nil {
+			tx.Rollback()
+			return
+		}
+		if err = tx.Table("wave_" + turbineIdStr).Create(&data).Error; err != nil {
+
+		}
+		// 处理报警表单，数据上传包含正常数据或者是异常数据
+		// 异常数据才进行报警表单插入
+		// alert.DataID = data.ID
+		// alert.DataUUID = data.UUID
+		// alert.PointUUID = data.PointUUID
+		// alert.Time = alarmList[i].AlarmUpdateTime
+		// alert.TimeSet, _ = StrtoTime(time.DateTime, alarmList[i].AlarmUpdateTime)
+		// alert.Level = uint8(alarmList[i].AlarmDegree)
+		// alert.Location = alarmList[i].ComponentName
+		// if err = tx.Table("alert").Create(&alert).Error; err != nil {
+		// 	tx.Rollback()
+		// 	return
+		// }
+
+	}
+	tx.Commit()
+	return
 }

@@ -133,8 +133,8 @@ func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (leve
 	return maxlevel, nil
 }
 
-//TODO 目前至更新了测点的status。再根据测点最大状态值更新风机和风场的状态
-//* 先查询是否为该测点的最新数据，是则更新测点状态
+// TODO 目前至更新了测点的status。再根据测点最大状态值更新风机和风场的状态
+// * 先查询是否为该测点的最新数据，是则更新测点状态
 func StatusUpdate(db *gorm.DB, times int64, ppmwcid []string, level uint8) error {
 	//* 是否为最新
 	var point Point
@@ -167,7 +167,7 @@ func StatusUpdate(db *gorm.DB, times int64, ppmwcid []string, level uint8) error
 	return nil
 }
 
-//报警查询的时间转换
+// 报警查询的时间转换
 func AlertsTimeSet(a interface{}) (*[]Alert, error) {
 	value, ok := a.(*[]Alert)
 	if !ok {
@@ -180,7 +180,7 @@ func AlertsTimeSet(a interface{}) (*[]Alert, error) {
 	return &vv, nil
 }
 
-//频带报警详细信息查询至alert.BandAlert
+// 频带报警详细信息查询至alert.BandAlert
 func BandAlertDetail(db *gorm.DB, id string) (balert alert.BandAlert, err error) {
 	var a Alert
 	if err = db.Table("alert").Preload("BandAlert").Last(&a, id).Error; err != nil {
@@ -293,8 +293,8 @@ func AlertsSearch(db *gorm.DB, m Limit, c echo.Context) (ff []Alert, count int64
 	return ff, count, nil
 }
 
-//下级对应上级下所有下级状态check → 改变上级状态为最高。(上一级，当前级)
-//对应风场下所有风机check 风场的状态修改
+// 下级对应上级下所有下级状态check → 改变上级状态为最高。(上一级，当前级)
+// 对应风场下所有风机check 风场的状态修改
 func StatusCheck(id interface{}, upper string, current string, db *gorm.DB) (cs []uint, uid string, err error) {
 	uTable, upointer := ModelCheck(upper)
 	cTable, _ := ModelCheck(current)
@@ -344,7 +344,7 @@ func ModelCheck(desc string) (table string, dst interface{}) {
 	return table, dst
 }
 
-//获取最大状态值
+// 获取最大状态值
 func MaxStatus(l []uint) (key int, max uint) {
 	key = 0
 	for k := range l {

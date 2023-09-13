@@ -870,6 +870,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 
 		err = mod.CheckData(db, &pdata)
 		if pdata.ID != 0 {
+			fmt.Println("ssssssssssssssssssss")
 			ErrNil(c, returnData, true, "已有该数据。")
 			return err
 		}
@@ -1925,14 +1926,35 @@ func AlertConfirm(c echo.Context) error {
 }
 
 // FactoryDataUpdateHandler 厂家数据上传接口
-func FactoryDataUpdateHandler(c echo.Context) error {
+func FactoryDataUpdateHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
-	var request mod.Request
-	var err error
+	var factoryData mod.FactoryUpdateData
 
-	if err = c.Bind(&request); err != nil {
+	farmIdStr := c.Param("farmid")
+	turbineIdStr := c.Param("turbineId")
+	if err = c.Bind(&factoryData); err != nil {
+		ErrCheck(c, returnData, err, "数据解析失败")
 		return err
 	}
-	ErrNil(c, returnData, nil, "成功")
+
+	if farmIdStr == "" {
+		mainlog.Error("风场id转换int失败: %v", err)
+		ErrCheck(c, returnData, err, "风场id转换int失败")
+		return err
+	}
+	if farmIdStr == "" {
+		mainlog.Error("风机id转换int失败: %v", err)
+		ErrCheck(c, returnData, err, "风机id转换int失败")
+		return err
+	}
+
+	var data mod.Data
+	if data, err = factoryData.InsertFactoryData(db, farmIdStr, turbineIdStr); err != nil {
+		mainlog.Error("插入数据发生异常: %v", err)
+		ErrCheck(c, returnData, err, "数据库插入数据发行异常")
+		return err
+	}
+
+	ErrNil(c, returnData, data, "成功")
 	return nil
 }
