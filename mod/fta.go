@@ -20,10 +20,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-//从标准文件读取故障树
-//查询对应参数写进故障树
-//获得结构体
-//输入数据id和测点id
+// 从标准文件读取故障树
+// 查询对应参数写进故障树
+// 获得结构体
+// 输入数据id和测点id
 func TreeAlert(db *gorm.DB, pdata Data, ipport string) (uint8, error) {
 	var maxlevel uint8
 	//由测点定位到所属部件
@@ -131,11 +131,11 @@ func TreeAlert(db *gorm.DB, pdata Data, ipport string) (uint8, error) {
 	return maxlevel, nil
 }
 
-//读取故障树的toml到故障树结构体
-//各个节点解析。获取底层的特征值字段
-//索引风机、索引设备组态中特征值的具体字段得到值
-//自动安排id和layer编号
-//输出：结构体 alert.tree
+// 读取故障树的toml到故障树结构体
+// 各个节点解析。获取底层的特征值字段
+// 索引风机、索引设备组态中特征值的具体字段得到值
+// 自动安排id和layer编号
+// 输出：结构体 alert.tree
 func TreeGet(file io.Reader) (*alert.Tree, error) {
 	t := new(alert.Tree)
 	err := FileGet(file, t)
@@ -154,7 +154,7 @@ func TreeGet(file io.Reader) (*alert.Tree, error) {
 	return t, nil
 }
 
-//故障树分析、逻辑计算
+// 故障树分析、逻辑计算
 func TreeCalculate_2(t *alert.Tree, db *gorm.DB, pdata Data, index map[string]interface{}, ppmwfid []string, ipport string) error {
 	// 先给rpm
 	index["rpm"] = float64(pdata.Rpm) / 60
@@ -243,7 +243,7 @@ func GetSpectrumValue(key float32, fs int, y []float32) (r float32) {
 	return
 }
 
-//获取故障树中所需参数 （频率需要在频谱中找对应的幅值）
+// 获取故障树中所需参数 （频率需要在频谱中找对应的幅值）
 func NodeValueGet_2(t *alert.Tree, n *alert.Node, db *gorm.DB, pdata Data, index map[string]interface{}, ppmwfid []string) (err error) {
 	//properties get
 	if _, ok := t.ValueMap["spectrum"]; !ok {
@@ -361,7 +361,7 @@ func NodeValueGet_2(t *alert.Tree, n *alert.Node, db *gorm.DB, pdata Data, index
 	return nil
 }
 
-//调用程序进行频带计算
+// 调用程序进行频带计算
 func BandAnalysis(dbconfig *GormConfig, exepath string, ppmwfid []string, dataid string, freq int, columnname string) ([]string, error) {
 	find := regexp.MustCompile("\\(.*\\)")
 	refind := find.FindStringSubmatch(columnname)[0]
@@ -432,7 +432,7 @@ func BandAnalysis_2(db *gorm.DB, ipport string, ppmwfid []string, pdata Data, co
 	return postData.Databack, err
 }
 
-//获得关键字段的值。存储到map中
+// 获得关键字段的值。存储到map中
 func NodeColumnIndexGet_2(db *gorm.DB, ppmwfid []string, pdata Data, columnname string) (f float32, err error) {
 	//特征值的查找
 	_, _, ppmwuuid, err := PointtoFactory(db, ppmwfid[0])
@@ -464,7 +464,7 @@ func NodeColumnIndexGet_2(db *gorm.DB, ppmwfid []string, pdata Data, columnname 
 	return f, err
 }
 
-//底层节点计算
+// 底层节点计算
 func NodeCalaulte(t *alert.Tree, n *alert.Node) (rx float32) {
 	var n1, n2 float32
 	if n.Calculate.Goal1 != "" {
@@ -490,7 +490,7 @@ func NodeCalaulte(t *alert.Tree, n *alert.Node) (rx float32) {
 
 //用于有上下限的比较（阶段判断或底层数据大小判断）
 
-//节点比较
+// 节点比较
 func NodeCompare(method string, v1, v2 float32) bool {
 	switch method {
 	case ">":
@@ -509,7 +509,7 @@ func NodeCompare(method string, v1, v2 float32) bool {
 	return false
 }
 
-//节点逻辑
+// 节点逻辑
 func NodeLogic(n *alert.Node) {
 	var bs []bool
 	for _, v := range n.Children {
@@ -534,7 +534,7 @@ func NodeLogic(n *alert.Node) {
 	}
 }
 
-//给予ID编号，递归
+// 给予ID编号，递归
 func RangeNodesID(nodes []alert.Node, id *int) {
 	for k, v := range nodes {
 		if len(v.Children) != 0 {
@@ -551,7 +551,7 @@ func RangeNodesID(nodes []alert.Node, id *int) {
 	}
 }
 
-//一个节点下所有子节点id的集合，递归
+// 一个节点下所有子节点id的集合，递归
 func RangeNodesLayer(nodes []alert.Node, flayer *int, maxlayer *int, m map[int][]*alert.Node) {
 	for k, v := range nodes {
 		if len(v.Children) != 0 {
@@ -579,7 +579,7 @@ func RangeNodesLayer(nodes []alert.Node, flayer *int, maxlayer *int, m map[int][
 	*flayer--
 }
 
-//故障树信息插入
+// 故障树信息插入
 func TreeAlertSet(t *alert.Tree, db *gorm.DB, did string, pid string, filename string) (uint8, error) {
 	//故障条目
 	var ta Alert

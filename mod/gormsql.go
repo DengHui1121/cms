@@ -1,14 +1,9 @@
-//^ 数据库连接、配置相关的函数和结构体
+// ^ 数据库连接、配置相关的函数和结构体
 package mod
 
 import (
 	"bufio"
 	"fmt"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,6 +16,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 )
 
 var dbconfig *GormConfig
@@ -34,7 +35,7 @@ type GormConfig struct {
 	Schema   string
 }
 
-//^ 打开、连接数据库
+// ^ 打开、连接数据库
 func (info *GormConfig) GormOpen() (db *gorm.DB, err error) {
 	dbconfig = info
 	dsn := fmt.Sprintf("%v:%v@%v(%v:%v)/%v?charset=utf8&parseTime=True&loc=Local",
@@ -73,7 +74,7 @@ func (info *GormConfig) GormOpen() (db *gorm.DB, err error) {
 	return db, nil
 }
 
-//^ 根据结构体建立数据表
+// ^ 根据结构体建立数据表
 func TableCheck(db *gorm.DB) (err error) {
 	//基本信息迁移
 	if !db.Migrator().HasTable("user") {
@@ -92,7 +93,7 @@ func TableCheck(db *gorm.DB) (err error) {
 	}
 	// var f Factory = Factory{Name: "大唐四川发电有限公司新能源分公司"}
 	// db.Table("factory").Where("name=?", f.Name).FirstOrCreate(&f)
-	
+
 	//band列改名
 	if db.Table("band").Migrator().HasColumn(&alert.Band{}, "range") {
 		db.Table("band").Migrator().RenameColumn(&alert.Band{}, "range", "band_range")
@@ -103,7 +104,7 @@ func TableCheck(db *gorm.DB) (err error) {
 	if err != nil {
 		return err
 	}
-	
+
 	//检测风场下属相关数据表是否存在
 	var fs []Machine
 	err = db.Table("machine").Select("id", "uuid").Scan(&fs).Error
@@ -130,7 +131,7 @@ func TableCheck(db *gorm.DB) (err error) {
 	return nil
 }
 
-//检查数据库是否存在，若不存在则新建。
+// 检查数据库是否存在，若不存在则新建。
 func CreateSchema(dbconfig *GormConfig) (err error) {
 	dsn := fmt.Sprintf("%v:%v@%v(%v:%v)/%v?charset=utf8&parseTime=True&loc=Local",
 		dbconfig.Admin, dbconfig.Password, dbconfig.Net, dbconfig.Addr, dbconfig.Port, "information_schema")
@@ -152,11 +153,11 @@ func CreateSchema(dbconfig *GormConfig) (err error) {
 	}
 }
 
-//^ 分页
+// ^ 分页
 func Paginate(r *http.Request) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		
+
 		if page == 0 {
 			page = 1
 		}
@@ -177,9 +178,9 @@ type DBJob struct {
 	OutputFiles []*OutputFile `json:"output_file"`
 }
 
-//* 导出数据库
-//1.备份到当前库 _backup_表。此时会锁表。
-//2.筛选data_ wave_ data_rpm_ wave_rpm_ alert数据时间筛选
+// * 导出数据库
+// 1.备份到当前库 _backup_表。此时会锁表。
+// 2.筛选data_ wave_ data_rpm_ wave_rpm_ alert数据时间筛选
 func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string, err error) {
 	stime, _ := StrtoTime("2006-01-02 15:04:05", limit.Starttime)
 	etime, _ := StrtoTime("2006-01-02 15:04:05", limit.Endtime)
@@ -202,7 +203,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	var DataTableStr []string
 	var WaveTableStr []string
 	var MsgTableStr []string
-	
+
 	prefix := "_backup_" + time.Now().Format("20060102150405") + "_"
 	//建表
 	err = db.Transaction(func(tx *gorm.DB) error {
@@ -264,7 +265,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		return
 	}
@@ -310,7 +311,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 			}
 		}
 	}()
-	
+
 	//操作
 	//导出
 	var createfile string
@@ -338,7 +339,7 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	inifile.Write([]byte(inistr))
 	inifile.Close()
 	var opt []string
-	
+
 	opt = []string{"--defaults-extra-file=" + inifilepath, dbconfig.Schema}
 	//目标表格
 	opt = append(opt, MsgTableStr...)
@@ -346,9 +347,9 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	opt = append(opt, WaveTableStr...)
 	defaultopt := []string{"--skip-comments", "--compact", "--hex-blob"}
 	opt = append(opt, defaultopt...)
-	
+
 	cmd := exec.Command("mysqldump", opt...)
-	
+
 	// 设置接收
 	if _, err := os.Stat(sfilepath); err != nil {
 		if !os.IsExist(err) {
@@ -371,12 +372,12 @@ func TableBackUp(db *gorm.DB, limit Limit, sfilepath string) (sqlfilename string
 	// var outerr bytes.Buffer
 	// cmd.Stdout = &out
 	// cmd.Stderr = &outerr
-	
+
 	err = cmd.Run()
 	if err != nil {
 		return
 	}
-	
+
 	return
 }
 func TableInsert_2(db *gorm.DB, sqlfile io.Reader) error {
@@ -393,7 +394,7 @@ func TableInsert_2(db *gorm.DB, sqlfile io.Reader) error {
 	if err != nil {
 		return err
 	}
-	
+
 	sqltname, err := filepath.Abs(sqlfiletemp.Name())
 	if err != nil {
 		return err
@@ -402,7 +403,7 @@ func TableInsert_2(db *gorm.DB, sqlfile io.Reader) error {
 		sqlfiletemp.Close()
 		os.Remove(sqltname)
 	}()
-	
+
 	_, err = io.Copy(sqlfiletemp, sqlfile)
 	if err != nil {
 		return err
@@ -437,7 +438,7 @@ func TableInsert_2(db *gorm.DB, sqlfile io.Reader) error {
 	return nil
 }
 
-//直接命令行输入
+// 直接命令行输入
 func TableInsert(db *gorm.DB, sqlfile *os.File) error {
 	defer sqlfile.Close()
 	//存储临时文件 到 output/temp
@@ -461,7 +462,7 @@ func TableInsert(db *gorm.DB, sqlfile *os.File) error {
 		}
 	}
 	return nil
-	
+
 }
 
 var Tablename map[string]interface{} = map[string]interface{}{
@@ -484,10 +485,10 @@ var Tablename map[string]interface{} = map[string]interface{}{
 	"windfarm_month_report": &WindfarmMonthReport{},
 }
 
-//* 导入数据库
-//合并所有前缀含backup的表
-//1.设备相关
-//2.数据 报警相关
+// * 导入数据库
+// 合并所有前缀含backup的表
+// 1.设备相关
+// 2.数据 报警相关
 func TableCombine(db *gorm.DB) error {
 	t, err := db.Migrator().GetTables()
 	if err != nil {
@@ -498,7 +499,7 @@ func TableCombine(db *gorm.DB) error {
 	var DataTableStr []string
 	var ReportTableStr []string
 	var MsgTableStr []string
-	
+
 	for _, v := range t {
 		if strings.Contains(v, "_backup_") {
 			BackupTableStr = append(BackupTableStr, v)
@@ -516,7 +517,7 @@ func TableCombine(db *gorm.DB) error {
 			}
 		}
 	}
-	
+
 	//先导入设备表，再导入数据，再导入故障
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, v := range MsgTableStr {
@@ -543,7 +544,7 @@ func TableCombine(db *gorm.DB) error {
 		}
 		return nil
 	})
-	
+
 	//转移
 	var AlertTable string
 	err = db.Transaction(func(tx *gorm.DB) error {
@@ -627,7 +628,7 @@ func TableCombine(db *gorm.DB) error {
 							}
 						}
 					}
-					
+
 					// 粘贴数据
 					ds := make([]map[string]interface{}, 0)
 					var tatalc int64
@@ -680,7 +681,7 @@ func TableCombine(db *gorm.DB) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// alert
 		if strings.Contains(AlertTable, "_backup_") {
 			vnew := strings.Trim(AlertTable, "_backup_")
@@ -717,7 +718,7 @@ func TableCombine(db *gorm.DB) error {
 				}
 			}
 		}
-		
+
 		if err != nil {
 			return err
 		}
@@ -736,7 +737,7 @@ func TableCombine(db *gorm.DB) error {
 	return nil
 }
 
-//1.相同uuid，按updated_time更新时间更新覆盖。
+// 1.相同uuid，按updated_time更新时间更新覆盖。
 func GetOutput(reader *bufio.Reader) {
 	var sumOutput string //统计屏幕的全部输出内容
 	outputBytes := make([]byte, 200)

@@ -16,22 +16,22 @@ type FaultCount struct {
 	Key      string `json:"key"`
 }
 
-//TODO 一个种类 多个部件
+// TODO 一个种类 多个部件
 var partindex = map[string]string{
 	"bearing":   "主轴承",
 	"gear":      "齿轮箱",
 	"generator": "发电机",
 	"cabin":     "机舱",
-	// "tower":     "塔筒",
-	// "blade":     "叶片",
+	"tower":     "塔筒",
+	"blade":     "叶片",
 }
 var partchindex = map[string]string{
 	"主轴承": "bearing",
 	"齿轮箱": "gear",
 	"发电机": "generator",
 	"机舱":  "cabin",
-	// "塔筒":  "tower",
-	// "叶片":  "blade",
+	"塔筒":  "tower",
+	"叶片":  "blade",
 }
 
 var levelindex = map[string]string{
@@ -41,15 +41,15 @@ var levelindex = map[string]string{
 	"3": "报警",
 }
 
-//风机月统计故障次数结果查询。当前时间往前一年的数据
+// 风机月统计故障次数结果查询。当前时间往前一年的数据
 func MonthFaultCounts(db *gorm.DB, fid string, keyword string) (fcs []FaultCount, err error) {
 	fcs = []FaultCount{
 		{PartName: "bearing", Counts: "0", Key: "1"},
 		{PartName: "gear", Counts: "0", Key: "2"},
 		{PartName: "generator", Counts: "0", Key: "3"},
 		{PartName: "cabin", Counts: "0", Key: "4"},
-		// {PartName: "blade", Counts: "0", Key: "5"},
-		// {PartName: "tower", Counts: "0", Key: "6"},
+		{PartName: "blade", Counts: "0", Key: "5"},
+		{PartName: "tower", Counts: "0", Key: "6"},
 	}
 	stime := time.Now().AddDate(-1, 0, 0).Unix()
 	etime := time.Now().Unix()
@@ -108,7 +108,7 @@ type Bar struct {
 	Key   string `json:"key"`
 }
 
-//故障统计饼图
+// 故障统计饼图
 func MonthFaultLevel(db *gorm.DB, fid string, keyword string) (fcs []FaultBar, err error) {
 	fcs = make([]FaultBar, 0)
 	var table string
@@ -157,8 +157,8 @@ func MonthFaultLevel(db *gorm.DB, fid string, keyword string) (fcs []FaultBar, e
 		"齿轮箱": 1,
 		"发电机": 2,
 		"机舱":  3,
-		// "叶片":  4,
-		// "塔筒":  5,
+		"叶片":  4,
+		"塔筒":  5,
 	}
 	var warnpercent FaultBar
 	ex = make([]map[string]interface{}, 0)
@@ -174,8 +174,8 @@ func MonthFaultLevel(db *gorm.DB, fid string, keyword string) (fcs []FaultBar, e
 		{Name: "齿轮箱", Value: "0", Key: "2"}, //1
 		{Name: "发电机", Value: "0", Key: "3"}, //2
 		{Name: "机舱", Value: "0", Key: "4"},  //3
-		// {Name: "叶片", Value: "0", Key: "5"},  //4
-		// {Name: "塔筒", Value: "0", Key: "6"},  //5
+		{Name: "叶片", Value: "0", Key: "5"},  //4
+		{Name: "塔筒", Value: "0", Key: "6"},  //5
 	}
 	for _, v := range ex {
 		warnpercent.Data[pindex[v["part_type"].(string)]].Value = fmt.Sprint(v["COUNT(*)"].(int64))
@@ -195,8 +195,8 @@ func MonthFaultLevel(db *gorm.DB, fid string, keyword string) (fcs []FaultBar, e
 		{Name: "齿轮箱", Value: "0", Key: "2"}, //1
 		{Name: "发电机", Value: "0", Key: "3"}, //2
 		{Name: "机舱", Value: "0", Key: "4"},  //3
-		// {Name: "叶片", Value: "0", Key: "5"},  //4
-		// {Name: "塔筒", Value: "0", Key: "6"},  //5
+		{Name: "叶片", Value: "0", Key: "5"},  //4
+		{Name: "塔筒", Value: "0", Key: "6"},  //5
 	}
 	for _, v := range ex {
 		alertpercent.Data[pindex[v["part_type"].(string)]].Value = fmt.Sprint(v["COUNT(*)"].(int64))
@@ -205,16 +205,16 @@ func MonthFaultLevel(db *gorm.DB, fid string, keyword string) (fcs []FaultBar, e
 	return
 }
 
-//各部位的三个故障等级统计饼图
-//确认风场id 、月统计图搜索风场月度统计、数量统计计算、返回
+// 各部位的三个故障等级统计饼图
+// 确认风场id 、月统计图搜索风场月度统计、数量统计计算、返回
 func MonthPartFault(db *gorm.DB, id string, keyword string) (fcs []FaultBar, err error) {
 	fcs = []FaultBar{
 		{Title: "bearing", Key: "1"},
 		{Title: "gear", Key: "2"},
 		{Title: "generator", Key: "3"},
 		{Title: "cabin", Key: "4"},
-		// {Title: "blade", Key: "5"},
-		// {Title: "tower", Key: "6"},
+		{Title: "blade", Key: "5"},
+		{Title: "tower", Key: "6"},
 	}
 	var wuuids []string
 	switch keyword {
@@ -285,8 +285,8 @@ type PartTrendSum struct {
 	Bearing   uint32
 	Generator uint32
 	Cabin     uint32
-	// Blade     uint32
-	// Tower     uint32
+	Blade     uint32
+	Tower     uint32
 }
 
 func FaultTrend(db *gorm.DB, id string, keytype string, keyword string) (fcs []FaultCurrent, err error) {
@@ -297,8 +297,8 @@ func FaultTrend(db *gorm.DB, id string, keytype string, keyword string) (fcs []F
 		{Legend: "齿轮箱"},
 		{Legend: "发电机"},
 		{Legend: "机舱"},
-		// {Legend: "叶片"},
-		// {Legend: "塔筒"},
+		{Legend: "叶片"},
+		{Legend: "塔筒"},
 	}
 	switch keyword {
 	case "company":
@@ -314,18 +314,18 @@ func FaultTrend(db *gorm.DB, id string, keytype string, keyword string) (fcs []F
 	}
 	var mrs []PartTrendSum
 	var mrsmap map[string][]PartTrendSum = make(map[string][]PartTrendSum)
-	//按月、年统计总和
+	//按月、年统计总和, 其中月统计为仅三个月数据
 	switch keytype {
 	case "month":
 		timenow := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.Local)
-		stime := timenow.AddDate(-1, 0, 0)
+		stime := timenow.AddDate(0, -2, 0)
 		etime := time.Now()
 		//月份填入
 		for k := range fcs {
-			for i := 1; i < 13; i++ {
+			for i := 0; i < 3; i++ {
 				fcs[k].X = append(fcs[k].X, stime.AddDate(0, i, 0).Format("2006.1"))
 			}
-			fcs[k].Y = make([]float32, 12)
+			fcs[k].Y = make([]float32, 3)
 		}
 		err = db.Table("windfarm_month_report").
 			Where("windfarm_uuid IN ?", wuuids).
@@ -376,8 +376,8 @@ func FaultTrend(db *gorm.DB, id string, keytype string, keyword string) (fcs []F
 				fcs[1].Y[kk] += float32(p[k].Gear)
 				fcs[2].Y[kk] += float32(p[k].Generator)
 				fcs[3].Y[kk] += float32(p[k].Cabin)
-				// fcs[4].Y[kk] += float32(p[k].Blade)
-				// fcs[5].Y[kk] += float32(p[k].Tower)
+				fcs[4].Y[kk] += float32(p[k].Blade)
+				fcs[5].Y[kk] += float32(p[k].Tower)
 			}
 
 		}
@@ -418,10 +418,10 @@ func FaultPartTrend(db *gorm.DB, id string, keytype string, keyword string) (fcs
 		key = "generator"
 	case "4":
 		key = "cabin"
-	// case "5":
-	// 	key = "tower"
-	// case "6":
-	// 	key = "blade"
+	case "5":
+		key = "tower"
+	case "6":
+		key = "blade"
 	default:
 		key = "bearing"
 	}
@@ -464,7 +464,7 @@ func FaultPartTrend(db *gorm.DB, id string, keytype string, keyword string) (fcs
 	return
 }
 
-//* 出现故障后，风机、风场日更新、月更新
+// * 出现故障后，风机、风场日更新、月更新
 func UpdateReportAfterAlert(db *gorm.DB, alert Alert) (err error) {
 	if alert.ID != 0 {
 		db.Table("alert").First(&alert, alert.ID)
@@ -553,7 +553,7 @@ func UpdateReportCount(db *gorm.DB, alerttype string, alertlevel uint8, table st
 	return
 }
 
-//* 删除故障后，风机、风场日更新、月更新
+// * 删除故障后，风机、风场日更新、月更新
 func RollbackReportAfterDelet(db *gorm.DB, alert Alert) (err error) {
 	ppmfid, _, ppmfuuid, err := PointtoFactory(db, alert.PointID)
 	if err != nil {

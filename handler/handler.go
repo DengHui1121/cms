@@ -870,7 +870,6 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 
 		err = mod.CheckData(db, &pdata)
 		if pdata.ID != 0 {
-			fmt.Println("ssssssssssssssssssss")
 			ErrNil(c, returnData, true, "已有该数据。")
 			return err
 		}
@@ -1189,6 +1188,7 @@ func GetFanDataCurrentPlot(c echo.Context) error {
 	returnData := mod.ReturnData{}
 	fid := c.QueryParam("id")     //风机id
 	ptype := c.QueryParam("type") //测点id
+	//model := c.QueryParam("model") //算法模型
 	var m mod.MultiDatatoPlot
 	m.Currentplot = make([]mod.CurrentPlot, 0)
 	//找测点和限制条件，填充m
@@ -1957,4 +1957,101 @@ func FactoryDataUpdateHandler(c echo.Context) (err error) {
 
 	ErrNil(c, returnData, data, "成功")
 	return nil
+}
+
+// 获取风机或风场的算法预警统计
+func GetAlgorithmHandler(c echo.Context) (err error) {
+	typeStr := c.Param("type")
+	idStr := c.QueryParam("id")
+	var returnData mod.ReturnData
+	var algorith []mod.Algorith
+	if idStr == "" {
+		idStr = "0"
+	}
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败")
+		ErrCheck(c, returnData, err, "id string转int失败")
+		return err
+	}
+	switch typeStr {
+	case "fan":
+		if err = db.Table("machine").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts").
+			Joins("right join part on part.machine_uuid = machine.uuid").Joins("right join point on point.part_uuid = part.uuid").
+			Joins("right join alert on alert.point_uuid = point.uuid").Group("alert.strategy").Where("machine.id = ?", id).
+			Find(&algorith).Error; err != nil {
+
+			mainlog.Error("获取风机预警统计失败")
+			ErrCheck(c, returnData, err, "获取风机预警统计失败")
+			return err
+
+		}
+
+	case "farm":
+		if err = db.Table("windfarm").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts").
+			Joins("right join machine on machine.windfarm_uuid = windfarm.uuid").Joins("right join part on part.machine_uuid = machine.uuid").
+			Joins("right join point on point.part_uuid = part.uuid").Joins("right join alert on alert.point_uuid = point.uuid").
+			Joins("right join fault on fault.alert_uuid = alert.uuid").Group("alert.strategy").
+			Where("machine.id = ?", id).Find(&algorith).Error; err != nil {
+
+			mainlog.Error("获取风场预警统计失败")
+			ErrCheck(c, returnData, err, "获取风场预警统计失败")
+			return err
+
+		}
+	}
+	ErrNil(c, returnData, algorith, "获取预警统计")
+	return
+}
+
+// 获取风场故障反馈记录
+func GetFarmFaultFeedBackHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var faults []mod.Fault
+	idStr := c.QueryParam("id")
+	if idStr == "" {
+		idStr = "0"
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("风场id转int失败")
+		ErrCheck(c, returnData, err, "风场id转int失败")
+		return
+	}
+
+	if err = db.Table("fault").Select("fault.*").Joins("left join alert on alert.uuid = fault.alert_uuid").
+		Joins("left join point on point.uuid = alert.point_uuid").Joins("left join part on part.uuid = point.part_uuid").
+		Joins("left join machine on machine.uuid = part.machine_uuid").Joins("left join windfarm on windfarm.uuid = machine.windfarm_uuid").
+		Where("windfarm.id = ?", id).Find(&faults).Error; err != nil {
+
+		mainlog.Info("获取风场故障反馈记录失败 %v", err)
+		ErrCheck(c, returnData, err, "获取风场故障反馈记录失败")
+		return
+
+	}
+
+	ErrNil(c, returnData, faults, "获取风场故障反馈记录成功")
+	return
+}
+
+// 新增故障记录
+func AddFaultHandler(c echo.Context) (err error) {
+	mainlog.Info("开始新增故障记录")
+	var fault mod.Fault
+	var returnData mod.ReturnData
+	if err = c.Bind(&fault); err != nil {
+		mainlog.Error("数据解析失败 : %v", fault)
+		ErrCheck(c, returnData, err, "数据解析失败")
+		return err
+	}
+
+	if err = db.Table("fault").Create(&fault).Error; err != nil {
+		mainlog.Error("新增故障记录失败 : %v", fault)
+		ErrCheck(c, returnData, err, "新增故障记录失败")
+		return err
+	}
+
+	ErrNil(c, returnData, nil, "")
+	return
 }

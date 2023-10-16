@@ -83,14 +83,14 @@ type Windfarm struct {
 	ID          uint    `gorm:"primarykey" json:"id,string"`
 	UUID        string  `gorm:"unique_index" json:"-"`
 	FactoryID   uint    `gorm:"-" json:"company_id,string"`
-	FactoryUUID string  `json:"-"`
-	Name        string  `gorm:"not null" json:"desc"`           //前端显示为风场编码
-	Desc        string  `gorm:"not null" json:"windfield_name"` //前端显示为风场名称
-	Province    string  `gorm:"not null" json:"province"`
-	City        string  `gorm:"not null" json:"city"`
-	District    string  `gorm:"not null" json:"district"`
-	Longitude   float32 `gorm:"not null" json:"longitude,string"`
-	Latitude    float32 `gorm:"not null" json:"latitude,string"`
+	FactoryUUID string  `gorm:"comment:公司uuid" json:"-"`
+	Name        string  `gorm:"not null; comment:风场名" json:"desc"`            //前端显示为风场编码
+	Desc        string  `gorm:"not null; comment:风场描述" json:"windfield_name"` //前端显示为风场名称
+	Province    string  `gorm:"not null; comment:省" json:"province"`
+	City        string  `gorm:"not null; comment:市" json:"city"`
+	District    string  `gorm:"not null; comment:地区" json:"district"`
+	Longitude   float32 `gorm:"not null; comment:经度" json:"longitude,string"`
+	Latitude    float32 `gorm:"not null; comment:纬度" json:"latitude,string"`
 
 	Status   uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
 	Machines []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
@@ -156,26 +156,26 @@ type Machine struct {
 	UUID         string `gorm:"unique_index" json:"-"`
 	WindfarmID   uint   `gorm:"-" json:"windfield_id,string"`
 	WindfarmUUID string `json:"-"`
-	Name         string `gorm:"not null" json:"desc" toml:"name"`
-	Type         string `gorm:"not null" json:"model"`
+	Name         string `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
+	Type         string `gorm:"not null; comment:风机类型" json:"model"`
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`
 	// AlertVersion    string  `json:"alert_version,omitempty"`
-	FanVersion      string  `json:"version"` //风机标准
-	TreeVersion     string  `json:"tree_version"`
+	FanVersion      string  `gorm:"comment:风机标准" json:"version"` //风机标准
+	TreeVersion     string  `gorm:"comment:设备树版本" json:"tree_version"`
 	Unit            string  `json:"unit" toml:"unit"`
-	Desc            string  `json:"fan_name"`
-	BuiltTime       string  `json:"time"`
-	Status          uint8   `gorm:"type:tinyint;default:0" json:"status,string"`
-	Genfactory      string  `json:"genfactory"`      //发电机厂家
-	Gentype         string  `json:"gentype"`         //发电机型号
-	Gearfactory     string  `json:"gearfactory"`     //齿轮箱厂家
-	Geartype        string  `json:"geartype"`        //齿轮箱型号
-	Mainshaffactory string  `json:"mainshaffactory"` //主轴厂家
-	Mainshaftype    string  `json:"mainshaftype"`    //主轴型号
-	Bladefactory    string  `json:"bladefactory"`    //叶片厂家
-	Bladetype       string  `json:"bladetype"`       //叶片型号
-	Health          float64 `gorm:"-" json:"health"` //全生命周期
+	Desc            string  `gorm:"comment:风机描述" json:"fan_name"`
+	BuiltTime       string  `gorm:"comment:投运时间" json:"time"`
+	Status          uint8   `gorm:"type:tinyint;default:0;comment:状态" json:"status,string"`
+	Genfactory      string  `gorm:"comment:发电机厂家" json:"genfactory"`     //发电机厂家
+	Gentype         string  `gorm:"comment:发电机型号" json:"gentype"`        //发电机型号
+	Gearfactory     string  `gorm:"comment:齿轮箱厂家" json:"gearfactory"`    //齿轮箱厂家
+	Geartype        string  `gorm:"comment:齿轮箱型号" json:"geartype"`       //齿轮箱型号
+	Mainshaffactory string  `gorm:"comment:主轴厂家" json:"mainshaffactory"` //主轴厂家
+	Mainshaftype    string  `gorm:"comment:主轴型号" json:"mainshaftype"`    //主轴型号
+	Bladefactory    string  `gorm:"comment:叶片厂家" json:"bladefactory"`    //叶片厂家
+	Bladetype       string  `gorm:"comment:叶片型号" json:"bladetype"`       //叶片型号
+	Health          float64 `gorm:"-" json:"health"`                     //全生命周期
 	//一年内故障次数
 	TotalAlertCount int    `json:"total_alert_count"  gorm:"-"`
 	Parts           []Part `json:"children" gorm:"foreignKey:MachineUUID;references:UUID"`
@@ -578,19 +578,24 @@ type Alert struct {
 	Location         string            `json:"location"`           //部件
 	PartType         string            `json:"-" gorm:"-"`
 	Time             string            `json:"time" gorm:"-"` //时间
-	Level            uint8             `gorm:"type:tinyint;comment:'报警等级'" json:"level"`
-	Type             string            `json:"type" `     //报警类型 故障树、频道幅值···// TODO 可自定义增加
-	Strategy         string            `json:"strategy" ` //策略描述 如有效值报警
-	Desc             string            `json:"desc"`      //报警描述
-	TimeSet          int64             `json:"-"`         //格式转换 //^ 数据的时间
-	Rpm              float32           `json:"rpm" gorm:"rpm"`
+	Level            uint8             `gorm:"type:tinyint;comment:报警等级" json:"level"`
+	Type             string            `gorm:"comment:报警类型" json:"type" `     //报警类型 故障树、频道幅值···// TODO 可自定义增加
+	Strategy         string            `gorm:"comment:报警策略" json:"strategy" ` //策略描述 如有效值报警
+	Desc             string            `gorm:"comment:报警描述" json:"desc"`      //报警描述
+	TimeSet          int64             `gorm:"comment:报警描述" json:"-"`         //格式转换 //^ 数据的时间
+	Rpm              float32           `gorm:"rpm;comment:报警描述" json:"rpm" `
 	BandAlert        alert.BandAlert   `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
 	TreeAlert        alert.TreeAlert   `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
 	ManualAlert      alert.ManualAlert `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
-	Code             string            `json:"code"`                          //预留 告警类型代码
-	Faulttype        int               `json:"faulttype"`                     //预留 故障标识
-	Source           uint8             `json:"source"`                        //0：自动 1：人工
-	Suggest          string            `json:"suggest"`                       //TODO 增加处理建议 可编辑 显示在右下角
+	Code             string            `gorm:"comment:报警类型代码" json:"code"` //预留 告警类型代码
+	Faulttype        int               `json:"faulttype"`                  //预留 故障标识
+	Source           uint8             `json:"source"`                     //0：自动 1：人工
+	Suggest          string            `json:"suggest"`                    //TODO 增加处理建议 可编辑 显示在右下角
+	Progress         string            `json:"progress" gorm:"-"`
+	CheckTime        string            `json:"checkTime" gorm:"-"`
+	RepairTime       string            `json:"repairTime" gorm:"-"`
+	PartName         string            `json:"partName" gorm:"-"`
+	File             string            `json:"file" gorm:"-"`
 	Handle           uint8             `gorm:"type:tinyint" json:"handle"`    //0为红色表示未处理，1为绿色表示已处理。
 	Broadcast        uint8             `gorm:"type:tinyint" json:"broadcast"` //是否通知给了前端 0/1
 	BroadcastMessage string            `gorm:"-" json:"message"`              //是否通知给了前端 0/1
@@ -836,7 +841,7 @@ func (factoryData FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 		return
 	}
 
-	if err = db.Table("machine").Where("id = ? ", turbineId).Preload("Parts.Points").Find(&machine).
+	if err = db.Table("machine").Where("id = ? ", turbineId).Find(&machine).
 		Error; err != nil {
 		return
 	}
@@ -889,7 +894,10 @@ func (factoryData FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 		}
 
 		//查询测点uuid
-
+		var point Point
+		if err = db.Table("point").Where("uuid = ?", channelContentList[i].ECSChannel).Find(&point).Error; err != nil {
+			return
+		}
 		data.Length = strconv.Itoa(channelContentList[i].WaveLength)
 		data.SampleFreq = int(channelContentList[i].SampleRate)
 		data.Datatype = waveType
@@ -898,7 +906,7 @@ func (factoryData FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 		data.Time = channelContentList[i].AcquisitionTime
 		data.Result = channelContentList[i].Eigenvalue
 		data.FaultTag = channelContentList[i].ChannelAlarmType
-
+		data.PointUUID = point.UUID
 		//插入data数据表
 		if err = tx.Table("data_" + turbineIdStr).Create(&data).Error; err != nil {
 			tx.Rollback()
@@ -929,9 +937,6 @@ func (factoryData FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 			tx.Rollback()
 			return
 		}
-		if err = tx.Table("wave_" + turbineIdStr).Create(&data).Error; err != nil {
-
-		}
 		// 处理报警表单，数据上传包含正常数据或者是异常数据
 		// 异常数据才进行报警表单插入
 		// alert.DataID = data.ID
@@ -949,4 +954,26 @@ func (factoryData FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 	}
 	tx.Commit()
 	return
+}
+
+// 故障反馈记录
+type Fault struct {
+	ID          uint   `json:"id"`
+	FarmUUID    string `gorm:"farm_uuid;comment:风场uuid" json:"farmuuid"`
+	FanType     string `gorm:"fan_type;comment:风机类型" json:"fantype"`
+	EquipmentId string `gorm:"equipment_id;comment:设备id" json:"equipmentid"`
+	FanDesc     string `gorm:"fan_desc;comment:风机描述" json:"fandesc"`
+	Source      string `gorm:"source;comment:报警来源" json:"source"`
+	Time        string `gorm:"-" json:"time"`
+	TimeSet     string `gorm:"time_set;comment:时间戳" json:"timeset"`
+	Confirm     int    `gorm:"confirm;comment:报警确认" json:"confirm"`
+	FaultName   string `gorm:"fault_name;comment:报警名称" json:"faultname"`
+	Mttr        string `gorm:"mttr;comment:维修更换部件名" json:"mttr"`
+	Mrrt        string `gomr:"mrrt;comment:维修更换部件时间" json:"mrrt"`
+}
+
+type Algorith struct {
+	Name     string  `json:"name"`
+	Counts   int64   `json:"counts"`
+	Accuracy float32 `json:"accuracy"`
 }

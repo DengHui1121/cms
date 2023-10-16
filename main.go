@@ -192,11 +192,11 @@ func (mp *ModProcess) exec() error {
 		return nil
 	}
 }
-func (mp *ModProcess) Run() error {
+func (mp *ModProcess) Run() (err error) {
 	mp.cmd = exec.Command(mp.Dir, mp.Args...)
 	/*
-		//实时获取输出参数
-		// 获取输出管道
+		// //实时获取输出参数
+		// // 获取输出管道
 		stdout, err := mp.cmd.StdoutPipe()
 		if err != nil {
 			return err
@@ -211,10 +211,8 @@ func (mp *ModProcess) Run() error {
 				}
 				fmt.Println(string(line))
 			}
-		}()
-		err = mp.cmd.Start()
-	*/
-	err := mp.cmd.Start()
+		}()*/
+	err = mp.cmd.Start()
 	if err != nil {
 		mainlog.Error("启动%s模块失败 Error:%s", mp.Name, err)
 		return err
