@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"main/alert"
 	"main/mod"
+	"main/utils"
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -295,8 +298,10 @@ func FindTree(c echo.Context) error {
 		f = ff.Windfarms
 	case "windField":
 		var ff mod.Windfarm
-		err = db.Table("windfarm").Omit("created_at", "updated_at").
+		err = db.Table("windfarm").Omit("created_at", "updated_at").Preload("Machines").
 			Last(&ff, id).Error
+		err = db.Table("machine").Select("SUM(machine.capacity) as installed_capacity").Where("machine.windfarm_uuid =?", ff.UUID).Find(&ff.InstalledCapacity).Error
+		err = db.Table("machine").Select("COUNT(machine.id)").Where("machine.windfarm_uuid =?", ff.UUID).Find(&ff.MachineCounts).Error
 		var Longitudestr, Latitudestr string
 		if ff.Longitude == float32(int32(ff.Longitude)) {
 			if ff.Longitude == 0 {
@@ -769,6 +774,7 @@ func InsertAlert(c echo.Context) error {
 	if m.Desc == "" {
 		m.Desc = m.Type
 	}
+	m.Confirm = 1
 	ppmwfid, _, _, err := mod.PointtoFactory(db, m.PointID)
 	if err != nil {
 		ErrCheck(c, returnData, err, "创建失败")
@@ -837,8 +843,20 @@ func FileUpload(c echo.Context) error {
 // * api/v1/data 导入/更新数据
 func CheckMPointData(ipport string) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		var err error
 		returnData := mod.ReturnData{}
+		var err error
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			ErrCheck(c, returnData, err, "参数错误")
+			return err
+		}
+		var parsing mod.Parsing
+		if err = db.Table("parsing").Where("id = ? and is_del = ?", id, false).Find(&parsing).Error; err != nil {
+			ErrCheck(c, returnData, err, "参数错误")
+			return err
+		}
+
 		file, err := c.FormFile("data_upload")
 		if err != nil {
 			ErrCheck(c, returnData, err, "原文件上传失败")
@@ -851,38 +869,51 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 			return err
 		}
 		defer src.Close()
-		filetype := strings.Split(file.Filename, ".")
+		fullFileName := file.Filename
 		var info string
 		var filedata []byte
 		// 判断文件类型 不同文件的导入
-		info, filedata, err = mod.TypeRead(filetype[len(filetype)-1], src)
+		info, filedata, err = mod.TypeRead(fullFileName, src, parsing)
 		if err != nil {
 			ErrCheck(c, returnData, err, "导入文件失败")
 			return err
 		}
 		// 找测点并导入数据库
 		var pdata mod.Data
-		err = pdata.DataInfoGet(db, info, filedata)
+		err = pdata.DataInfoGet(db, info, filedata, parsing)
 		if err != nil {
 			ErrCheck(c, returnData, err, "未找到测点")
 			return err
 		}
 
 		err = mod.CheckData(db, &pdata)
-		if pdata.ID != 0 {
-			ErrNil(c, returnData, true, "已有该数据。")
-			return err
-		}
 		if err != nil {
 			ErrCheck(c, returnData, err, "数据表查询错误")
 			return err
 		}
-		if err = mod.InsertData(db, db, ipport, pdata); err != nil {
-			ErrCheck(c, returnData, err, "导入数据出错")
+		//! 覆盖会删除源数据相关报警信息
+		err = db.Transaction(func(tx *gorm.DB) error {
+			var alerttodelete []mod.Alert
+			var err error
+			tx.Table("alert").Where("data_uuid=?", pdata.UUID).
+				Find(&alerttodelete)
+			for k := range alerttodelete {
+				err = tx.Table("alert").Unscoped().Delete(&alerttodelete[k]).Error
+				if err != nil {
+					return err
+				}
+			}
+			if err = mod.InsertData(db, tx, ipport, pdata); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			ErrCheck(c, returnData, err, "数据导入失败")
 			return err
 		}
-		ErrNil(c, returnData, false, "无该数据，导入数据成功。")
-		// }
+
+		ErrNil(c, returnData, false, "导入数据成功。")
 		return nil
 	}
 }
@@ -891,6 +922,17 @@ func OverMPointData(ipport string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var err error
 		returnData := mod.ReturnData{}
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			ErrCheck(c, returnData, err, "参数错误")
+			return err
+		}
+		var parsing mod.Parsing
+		if err = db.Table("parsing").Where("id = ? and is_del = ?", id, false).Find(&parsing).Error; err != nil {
+			ErrCheck(c, returnData, err, "参数错误")
+			return err
+		}
 		file, err := c.FormFile("data_upload")
 		if err != nil {
 			ErrCheck(c, returnData, err, "原文件上传失败")
@@ -902,11 +944,11 @@ func OverMPointData(ipport string) echo.HandlerFunc {
 			return err
 		}
 		defer src.Close()
-		filetype := strings.Split(file.Filename, ".")
+		fullFileName := file.Filename
 		var info string
 		var filedata []byte
 		// 判断文件类型 不同文件的导入
-		info, filedata, err = mod.TypeRead(filetype[len(filetype)-1], src)
+		info, filedata, err = mod.TypeRead(fullFileName, src, parsing)
 		if err != nil {
 			ErrCheck(c, returnData, err, "导入文件失败")
 			return err
@@ -914,7 +956,7 @@ func OverMPointData(ipport string) echo.HandlerFunc {
 
 		// 找测点并导入数据库
 		var pdata mod.Data
-		err = pdata.DataInfoGet(db, info, filedata)
+		err = pdata.DataInfoGet(db, info, filedata, parsing)
 		if err != nil {
 			ErrCheck(c, returnData, err, "未找到测点")
 			return err
@@ -1183,12 +1225,14 @@ func MultiDataPlot(c echo.Context) error {
 	ErrNil(c, returnData, m, "调取数据成功")
 	return err
 }
+
+// 测点绘制趋势图
 func GetFanDataCurrentPlot(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
-	fid := c.QueryParam("id")     //风机id
-	ptype := c.QueryParam("type") //测点id
-	//model := c.QueryParam("model") //算法模型
+	fid := c.QueryParam("id")       //风机id
+	ptype := c.QueryParam("type")   //测点id
+	models := c.QueryParam("model") //算法模型
 	var m mod.MultiDatatoPlot
 	m.Currentplot = make([]mod.CurrentPlot, 0)
 	//找测点和限制条件，填充m
@@ -1198,13 +1242,219 @@ func GetFanDataCurrentPlot(c echo.Context) error {
 		Where("machine.id=?", fid).Where("point.id=?", ptype).
 		Select("point.id AS point_id , point.name AS legend").
 		Scan(&m.Currentplot)
-	m.FanStaticPlot(db, "rmsvalue", fid)
-	if err != nil {
+	if err = m.FanStaticPlot(db, models, fid); err != nil {
 		ErrCheck(c, returnData, err, "调取数据错误")
 		return err
 	}
 	ErrNil(c, returnData, m, "调取数据成功")
 	return err
+}
+
+var (
+	emptyFloat  = make([]float64, 0)
+	emptyString = make([]string, 0)
+)
+
+// 算法绘制趋势图
+func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	fanIdStr := c.QueryParam("fanId")
+	pointIdStr := c.QueryParam("pointId")
+	algorithmIdStr := c.Param("id")
+	startTime := c.QueryParam("startTime")
+	endTime := c.QueryParam("endTime")
+	typeStr := c.QueryParam("type")
+	//如果没有传startTime, endTime,则获取最近一个月的数据
+	if startTime == "" && endTime == "" {
+		startTime = time.Now().AddDate(0, -1, 0).Format("2006-01-02 15:04:05")
+		endTime = time.Now().Format("2006-01-02 15:04:05")
+	}
+
+	algorithmId, err := strconv.Atoi(algorithmIdStr)
+	if err != nil {
+		mainlog.Error("转换算法id错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+
+	fanId, err := strconv.Atoi(fanIdStr)
+	if err != nil {
+		mainlog.Error("转换风机id错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+
+	pointId, err := strconv.Atoi(pointIdStr)
+	if err != nil {
+		mainlog.Error("转换测点id错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+
+	// 首先查询出所有数据
+	var algorithmResultA []mod.AlgorithmResultA
+	if err = db.Table("point").Select("a.*").Joins(fmt.Sprintf("left join data_%d data on data.point_uuid = point.uuid", fanId)).
+		Joins("left join algorithm_result_a a on a.data_uuid = data.uuid").Where("point.id = ? and a.algorithm_id = ? AND create_time BETWEEN ? AND ?", pointId, algorithmId, startTime, endTime).
+		Find(&algorithmResultA).Error; err != nil {
+		mainlog.Error("获取算法错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+	// 如果没有接收type,则返回A类算法所有画图参数
+	if typeStr == "" {
+		// 直接返回所有画图结构体
+		var res mod.AlgorithmPlotA
+		if len(algorithmResultA) > 0 {
+			for _, value := range algorithmResultA {
+				res.TimePlot.TLev1 = value.TLevel1
+				res.TimePlot.TLev2 = value.TLevel2
+				res.TimePlot.TScore = append(res.TimePlot.TScore, value.TScore)
+				res.TimePlot.XAxis = append(res.TimePlot.XAxis, value.CreateTime)
+				res.FrequencyPlot.FLev1 = value.FLevel1
+				res.FrequencyPlot.FLev2 = value.FLevel2
+				res.FrequencyPlot.FScore = append(res.FrequencyPlot.FScore, value.FScore)
+				res.FrequencyPlot.XAxis = append(res.FrequencyPlot.XAxis, value.CreateTime)
+				res.EigenValuePlot.TypiFeature.MeanFre = append(res.EigenValuePlot.TypiFeature.MeanFre, value.MeanFre)
+				res.EigenValuePlot.TypiFeature.SquareFre = append(res.EigenValuePlot.TypiFeature.SquareFre, value.SquareFre)
+				res.EigenValuePlot.TypiFeature.GravFre = append(res.EigenValuePlot.TypiFeature.GravFre, value.GravFre)
+				res.EigenValuePlot.TypiFeature.SecGravFre = append(res.EigenValuePlot.TypiFeature.SecGravFre, value.SecGravFre)
+				res.EigenValuePlot.TypiFeature.GravRatio = append(res.EigenValuePlot.TypiFeature.GravRatio, value.GravRatio)
+				res.EigenValuePlot.TypiFeature.StandDeviate = append(res.EigenValuePlot.TypiFeature.StandDeviate, value.StandDeviate)
+				res.EigenValuePlot.XAxis = append(res.EigenValuePlot.XAxis, value.CreateTime)
+			}
+		} else {
+			res.TimePlot.TScore = emptyFloat
+			res.TimePlot.XAxis = emptyString
+			res.FrequencyPlot.FScore = emptyFloat
+			res.FrequencyPlot.XAxis = emptyString
+			res.EigenValuePlot.TypiFeature.MeanFre = emptyFloat
+			res.EigenValuePlot.TypiFeature.SquareFre = emptyFloat
+			res.EigenValuePlot.TypiFeature.GravFre = emptyFloat
+			res.EigenValuePlot.TypiFeature.SecGravFre = emptyFloat
+			res.EigenValuePlot.TypiFeature.GravRatio = emptyFloat
+			res.EigenValuePlot.TypiFeature.StandDeviate = emptyFloat
+			res.EigenValuePlot.XAxis = emptyString
+		}
+		ErrNil(c, returnData, res, "调取数据成功")
+	} else {
+		// typestr 不为空，返回对应type的结构体
+		switch typeStr {
+		case "time":
+			var res mod.TimePlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.TLev1 = value.TLevel1
+					res.TLev2 = value.TLevel2
+					res.TScore = append(res.TScore, value.TScore)
+					res.XAxis = append(res.XAxis, value.CreateTime)
+				}
+			} else {
+				res.TScore = emptyFloat
+				res.XAxis = emptyString
+			}
+
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "frequency":
+			var res mod.FrequencyPlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.FLev1 = value.FLevel1
+					res.FLev2 = value.FLevel2
+					res.FScore = append(res.FScore, value.FScore)
+					res.XAxis = append(res.XAxis, value.CreateTime)
+				}
+			} else {
+				res.FScore = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "eigenvalue":
+			var res mod.EigenValuePlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.TypiFeature.MeanFre = append(res.TypiFeature.MeanFre, value.MeanFre)
+					res.TypiFeature.SquareFre = append(res.TypiFeature.SquareFre, value.SquareFre)
+					res.TypiFeature.GravFre = append(res.TypiFeature.GravFre, value.GravFre)
+					res.TypiFeature.SecGravFre = append(res.TypiFeature.SecGravFre, value.SecGravFre)
+					res.TypiFeature.GravRatio = append(res.TypiFeature.GravRatio, value.GravRatio)
+					res.TypiFeature.StandDeviate = append(res.TypiFeature.StandDeviate, value.StandDeviate)
+					res.XAxis = append(res.XAxis, value.CreateTime)
+				}
+			} else {
+				res.TypiFeature.MeanFre = emptyFloat
+				res.TypiFeature.SquareFre = emptyFloat
+				res.TypiFeature.GravFre = emptyFloat
+				res.TypiFeature.SecGravFre = emptyFloat
+				res.TypiFeature.GravRatio = emptyFloat
+				res.TypiFeature.StandDeviate = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		}
+	}
+	return
+}
+
+func GetFanDataCurrentAlgorithmPlotB(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	fanIdStr := c.QueryParam("fanId")
+	pointIdStr := c.QueryParam("pointId")
+	algorithmIdStr := c.Param("id")
+	startTime := c.QueryParam("startTime")
+	endTime := c.QueryParam("endTime")
+	//如果没有传startTime, endTime,则获取最近一个月的数据
+	if startTime == "" && endTime == "" {
+		startTime = time.Now().AddDate(0, -1, 0).Format("2006-01-02 15:04:05")
+		endTime = time.Now().Format("2006-01-02 15:04:05")
+	}
+
+	algorithmId, err := strconv.Atoi(algorithmIdStr)
+	if err != nil {
+		mainlog.Error("转换算法id错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+
+	fanId, err := strconv.Atoi(fanIdStr)
+	if err != nil {
+		mainlog.Error("转换风机id错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+
+	pointId, err := strconv.Atoi(pointIdStr)
+	if err != nil {
+		mainlog.Error("转换测点id错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+
+	//查询所有原始数据
+	var algorithmResultB []mod.AlgorithmResultB
+	if err = db.Table("point").Select("b.*").Joins(fmt.Sprintf("left join data_%d data on data.point_uuid = point.uuid", fanId)).
+		Joins("left join algorithm_result_b b on b.data_uuid = data.uuid").Where("point.id = ? and b.algorithm_id = ? AND create_time BETWEEN ? AND ?", pointId, algorithmId, startTime, endTime).
+		Find(&algorithmResultB).Error; err != nil {
+		mainlog.Error("获取算法错误")
+		ErrCheck(c, returnData, err, "调取数据错误")
+		return err
+	}
+	var res mod.AlgorithmPlotB
+	if len(algorithmResultB) > 0 {
+		for _, value := range algorithmResultB {
+			res.Coordinates.X = append(res.Coordinates.X, value.X)
+			res.Coordinates.Y = append(res.Coordinates.Y, value.Y)
+			res.Coordinates.Z = append(res.Coordinates.Z, value.Z)
+			res.FaultName = append(res.FaultName, value.FaultName)
+		}
+	} else {
+		res.Coordinates.X = emptyFloat
+		res.Coordinates.Y = emptyFloat
+		res.Coordinates.Z = emptyFloat
+		res.FaultName = emptyString
+	}
+	ErrNil(c, returnData, res, "调取数据成功")
+
+	return
 }
 
 // TODO linux系统试验
@@ -1283,11 +1533,25 @@ func AnalyseDataPlot_2(ipport string) echo.HandlerFunc {
 		return err
 	}
 }
-func AnalyseDataFunc(c echo.Context) error {
+func AnalyseDataFunc(c echo.Context) (err error) {
 	returnData := mod.ReturnData{}
+	pointUUID := c.QueryParam("pointUUID")
 	f := mod.GetAnalysisOption()
+	var algorithms []mod.Algorithm
+	if err = db.Table("algorithm").Where("point_uuid = ? AND is_del = false", pointUUID).Find(&algorithms).Error; err != nil {
+		ErrCheck(c, returnData, err, "查询错误")
+	}
+	for _, v := range algorithms {
+		f = append(f, mod.AnalysisOption{
+			Value:        int(v.Id),
+			Label:        v.Name,
+			RpmAvailable: false,
+			DataUrl:      v.Url,
+			Type:         v.Type,
+		})
+	}
 	ErrNil(c, returnData, f, "success")
-	return nil
+	return
 }
 
 func FindStd(c echo.Context) error {
@@ -1830,8 +2094,14 @@ func AlertBroadcast(c echo.Context) error {
 	defer ws.Close()
 	//第一次  所有未确认的报警信息
 	var alerts []mod.Alert
-	db.Table("alert").Where("broadcast =?", 0).
-		Omit(clause.Associations).Find(&alerts)
+	db.Table("alert").Where("broadcast = 0 and confirm = 2").Omit(clause.Associations).Find(&alerts)
+	//midDB := db.Table("alert").Joins("right join point on point.uuid = alert.point_uuid").Joins("right join part on part.uuid = point.part_uuid").
+	//	Joins("right join machine on machine.uuid = part.machine_uuid").Joins("right join windfarm on windfarm.uuid = machine.windfarm.uuid").
+	//	Where("broadcast = ?", 0).Omit(clause.Associations)
+	//for _, value := range alerts {
+	//	midDB.Select("windfarm.name").Find(&value.Windfarm)
+	//	midDB.Select("point.name").Find(&value.Point)
+	//}
 	for k := range alerts {
 		_, names, _, _ := mod.PointtoFactory(db, alerts[k].PointID)
 		alerts[k].Time = mod.TimetoStr(alerts[k].TimeSet).Format("2006-01-02 15:04:05")
@@ -1903,7 +2173,8 @@ func AlertConfirm(c echo.Context) error {
 	var err error
 	var returnData mod.ReturnData
 	type confirm struct {
-		ID []string `json:"id"`
+		ID     []string `json:"id"`
+		Status string   `json:"status"`
 	}
 	var confirms confirm
 	c.Bind(&confirms)
@@ -1914,7 +2185,8 @@ func AlertConfirm(c echo.Context) error {
 				ErrNil(c, returnData, nil, "原数据已删除，报警信息删除")
 				return err
 			}
-			err = db.Table("alert").Where("id=?", confirms.ID[k]).Update("broadcast", 1).Error
+			status, _ := strconv.Atoi(confirms.Status)
+			err = db.Table("alert").Where("id=?", confirms.ID[k]).Updates(&mod.Alert{Broadcast: 1, CheckTime: mod.GetCurrentTime(), Confirm: status}).Error
 			if err != nil {
 				ErrCheck(c, returnData, err, "confirm fail")
 				return err
@@ -1964,7 +2236,7 @@ func GetAlgorithmHandler(c echo.Context) (err error) {
 	typeStr := c.Param("type")
 	idStr := c.QueryParam("id")
 	var returnData mod.ReturnData
-	var algorith []mod.Algorith
+	var algorith []mod.AlgorithmStatistic
 	if idStr == "" {
 		idStr = "0"
 	}
@@ -1977,9 +2249,9 @@ func GetAlgorithmHandler(c echo.Context) (err error) {
 	}
 	switch typeStr {
 	case "fan":
-		if err = db.Table("machine").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts").
-			Joins("right join part on part.machine_uuid = machine.uuid").Joins("right join point on point.part_uuid = part.uuid").
-			Joins("right join alert on alert.point_uuid = point.uuid").Group("alert.strategy").Where("machine.id = ?", id).
+		if err = db.Table("machine").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts,COUNT(alert.confirm = 1 OR NULL) / COUNT(alert.strategy) as accuracy").
+			Joins("RIGHT JOIN part on part.machine_uuid = machine.uuid").Joins("RIGHT JOIN point on point.part_uuid = part.uuid").
+			Joins("RIGHT JOIN alert on alert.point_uuid = point.uuid").Group("alert.strategy").Where("machine.id = ?", id).
 			Find(&algorith).Error; err != nil {
 
 			mainlog.Error("获取风机预警统计失败")
@@ -1989,10 +2261,9 @@ func GetAlgorithmHandler(c echo.Context) (err error) {
 		}
 
 	case "farm":
-		if err = db.Table("windfarm").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts").
-			Joins("right join machine on machine.windfarm_uuid = windfarm.uuid").Joins("right join part on part.machine_uuid = machine.uuid").
-			Joins("right join point on point.part_uuid = part.uuid").Joins("right join alert on alert.point_uuid = point.uuid").
-			Joins("right join fault on fault.alert_uuid = alert.uuid").Group("alert.strategy").
+		if err = db.Table("windfarm").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts,COUNT(alert.confirm = 1 OR NULL) / COUNT(alert.strategy) as accuracy").
+			Joins("RIGHT JOIN machine on machine.windfarm_uuid = windfarm.uuid").Joins("RIGHT JOIN part on part.machine_uuid = machine.uuid").
+			Joins("RIGHT JOIN point on point.part_uuid = part.uuid").Joins("RIGHT JOIN alert on alert.point_uuid = point.uuid").Group("alert.strategy").
 			Where("machine.id = ?", id).Find(&algorith).Error; err != nil {
 
 			mainlog.Error("获取风场预警统计失败")
@@ -2008,50 +2279,798 @@ func GetAlgorithmHandler(c echo.Context) (err error) {
 // 获取风场故障反馈记录
 func GetFarmFaultFeedBackHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
-	var faults []mod.Fault
-	idStr := c.QueryParam("id")
-	if idStr == "" {
-		idStr = "0"
-	}
+	var faultBack mod.FaultBackVo
+	startTime := c.QueryParam("startTime")
+	endTime := c.QueryParam("endTime")
+	location := c.QueryParam("location")
+	levelStr := c.QueryParam("level")
+	fanIdStr := c.QueryParam("fanId")
+	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		mainlog.Error("风场id转int失败")
 		ErrCheck(c, returnData, err, "风场id转int失败")
 		return
 	}
-
-	if err = db.Table("fault").Select("fault.*").Joins("left join alert on alert.uuid = fault.alert_uuid").
-		Joins("left join point on point.uuid = alert.point_uuid").Joins("left join part on part.uuid = point.part_uuid").
-		Joins("left join machine on machine.uuid = part.machine_uuid").Joins("left join windfarm on windfarm.uuid = machine.windfarm_uuid").
-		Where("windfarm.id = ?", id).Find(&faults).Error; err != nil {
-
-		mainlog.Info("获取风场故障反馈记录失败 %v", err)
-		ErrCheck(c, returnData, err, "获取风场故障反馈记录失败")
-		return
-
+	condition := "1 = 1"
+	if fanIdStr != "" {
+		fanId, _ := strconv.Atoi(fanIdStr)
+		condition = condition + fmt.Sprintf(" AND machineId = %d", fanId)
+	}
+	if location != "" {
+		condition = condition + fmt.Sprintf(" AND location LIKE '%%%s%%'", location)
+	}
+	if levelStr != "" {
+		level, _ := strconv.Atoi(levelStr)
+		condition = condition + fmt.Sprintf(" AND level = %d", level)
 	}
 
-	ErrNil(c, returnData, faults, "获取风场故障反馈记录成功")
+	if startTime != "" && endTime != "" {
+		var startTimeSet, endTimeSet int64
+		startTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", startTime)
+		endTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", endTime)
+		condition = condition + fmt.Sprintf(" AND timeSet BETWEEN %d AND %d", startTimeSet, endTimeSet)
+	}
+
+	midDB := db.Raw("(? UNION ALL ?) as temp",
+
+		db.Table("alert").Select("alert.id id,machine.id machineId, alert.time_set timeSet,alert.source source, machine.`desc` turbineName, alert.`level` `level` ,point.`name` location,alert.`desc` `desc`").
+			Joins("LEFT JOIN point ON point.uuid = alert.point_uuid").Joins("LEFT JOIN part on part.uuid = point.part_uuid").
+			Joins("LEFT JOIN machine on machine.uuid = part.machine_uuid").Joins("LEFT JOIN windfarm on windfarm.uuid = machine.windfarm_uuid").
+			Where("windfarm.id = ? AND alert.deleted_at IS NULL", id),
+
+		db.Table("fault_back fb").Select("fb.id,machine.id machineId, fb.time_set timeSet, fb.source source, machine.`desc` turbineName, fb.`status` `status`, part.`name` location,ft.name `desc`").
+			Joins("LEFT JOIN fault_tag ft on ft.id = fb.tag ").Joins("LEFT JOIN part on part.uuid = fb.part_uuid").
+			Joins("LEFT JOIN machine on machine.uuid = fb.machine_uuid").Joins("LEFT JOIN windfarm on windfarm.uuid = machine.windfarm_uuid").
+			Where("windfarm.id = ? AND fb.is_del = FALSE", id),
+	)
+
+	if err = db.Table("?", midDB).Where(condition).Count(&faultBack.Total).Error; err != nil {
+		mainlog.Error("获取风场故障反馈记录总数失败")
+		ErrCheck(c, returnData, err, "获取风场故障反馈记录总数失败")
+	}
+	if err = db.Table("?", midDB).Order("timeSet DESC").Where(condition).Find(&faultBack.List).Error; err != nil {
+		mainlog.Error("获取风场故障反馈记录失败")
+		ErrCheck(c, returnData, err, "获取风场故障反馈记录失败")
+	}
+
+	//处理时间戳 --> 时间
+	for key, value := range faultBack.List {
+		faultBack.List[key].FaultTime = mod.TimetoStrFormat("2006-01-02 15:04:05", value.TimeSet)
+	}
+	ErrNil(c, returnData, faultBack, "获取风场故障反馈记录成功")
 	return
 }
 
-// 新增故障记录
-func AddFaultHandler(c echo.Context) (err error) {
-	mainlog.Info("开始新增故障记录")
-	var fault mod.Fault
+// 新增算法
+func AddAlgorithmHandler(c echo.Context) (err error) {
+	var algorithm, algorithmDTO mod.Algorithm
 	var returnData mod.ReturnData
-	if err = c.Bind(&fault); err != nil {
-		mainlog.Error("数据解析失败 : %v", fault)
-		ErrCheck(c, returnData, err, "数据解析失败")
+
+	if err := c.Bind(&algorithm); err != nil {
+		ErrCheck(c, returnData, err, "参数错误")
+		mainlog.Error("参数错误 %v", err)
 		return err
 	}
 
-	if err = db.Table("fault").Create(&fault).Error; err != nil {
-		mainlog.Error("新增故障记录失败 : %v", fault)
-		ErrCheck(c, returnData, err, "新增故障记录失败")
+	if err = db.Table("algorithm").Where("name =?", algorithm.Name).Find(&algorithmDTO).Error; err != nil {
+		mainlog.Error("新增算法时，查重失败 %v", err)
+		ErrCheck(c, returnData, err, "新增算法时，查重失败")
+		return err
+	}
+	if algorithmDTO.Id != 0 {
+		mainlog.Error("已存在同名算法 %v", err)
+		ErrCheck(c, returnData, err, "已存在同名算法")
 		return err
 	}
 
-	ErrNil(c, returnData, nil, "")
+	algorithm.CreateTime = mod.GetCurrentTime()
+	algorithm.UpdateTime = mod.GetCurrentTime()
+
+	if strings.Contains(algorithm.Name, "时频残差") {
+		algorithm.Type = "A"
+	} else if strings.Contains(algorithm.Name, "故障类型") {
+		algorithm.Type = "B"
+	} else {
+		err = errors.New("算法名不包含时频残差或故障类型")
+		ErrCheck(c, returnData, err, "算法名不包含时频残差或故障类型")
+		return err
+	}
+	if err = db.Table("algorithm").Create(&algorithm).Error; err != nil {
+		mainlog.Error("新增算法失败 %v", err)
+		ErrCheck(c, returnData, err, "新增算法失败")
+		return err
+	}
+
+	ErrNil(c, returnData, nil, "新增算法成功")
+	return
+}
+
+// 删除算法
+func DeleteAlgorithmHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
+		return err
+	}
+
+	if err = db.Table("algorithm").Where("id = ?", id).Updates(&mod.Algorithm{UpdateTime: mod.GetCurrentTime(), IsDel: true}).Error; err != nil {
+		mainlog.Error("更新算法失败 %d %v", id, err)
+		ErrCheck(c, returnData, err, "更新算法失败")
+		return err
+
+	}
+
+	ErrNil(c, returnData, nil, "删除算法成功")
+	return
+}
+
+// 更新算法
+func UpdateAlgorithmHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var algorithm mod.Algorithm
+	if err := c.Bind(&algorithm); err != nil {
+		mainlog.Error("参数错误 %v", err)
+		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+	algorithm.UpdateTime = mod.GetCurrentTime()
+	if err = db.Table("algorithm").Where("id = ?", algorithm.Id).Updates(&algorithm).Error; err != nil {
+		mainlog.Error("更新算法失败 %v", err)
+		ErrCheck(c, returnData, err, "更新算法失败")
+		return err
+	}
+
+	ErrNil(c, returnData, nil, "更新算法成功")
+	return
+}
+
+// 获取算法
+func GetAlgorithmListHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var res mod.AlgorithmVo
+	pageSizeStr := c.QueryParam("pageSize")
+	pageNumStr := c.QueryParam("pageNum")
+	keyword := c.QueryParam("keyword")
+	if pageSizeStr == "" {
+		pageSizeStr = "99"
+	}
+
+	if pageNumStr == "" {
+		pageNumStr = "1"
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+
+	if err != nil {
+		mainlog.Error("解析pageSize失败 %v", err)
+		ErrCheck(c, returnData, err, "解析pageSize失败")
+		return err
+	}
+
+	pageNum, err := strconv.Atoi(pageNumStr)
+	if err != nil {
+		mainlog.Error("解析pageNum失败 %v", err)
+		ErrCheck(c, returnData, err, "解析pageNum失败")
+		return err
+	}
+
+	if err = db.Table("algorithm").Where("is_del = false and name like ?", "%"+keyword+"%").Count(&res.Total).Error; err != nil {
+		mainlog.Error("获取算法总数失败 %v", err)
+		ErrCheck(c, returnData, err, "获取算法总数失败")
+		return err
+	}
+
+	if err = db.Table("algorithm").Where("is_del = false and name like ?", "%"+keyword+"%").Limit(pageSize).Offset((pageNum - 1) * pageSize).Find(&res.List).Error; err != nil {
+		mainlog.Error("获取算法失败 %v", err)
+		ErrCheck(c, returnData, err, "获取算法失败")
+		return err
+	}
+
+	ErrNil(c, returnData, res, "获取算法成功")
+	return
+}
+
+// 根据对应测点获取算法列表
+func GetAlgorithmListByPointUUIDHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var res mod.AlgorithmVo
+	pointUUID := c.QueryParam("pointUUID")
+
+	if err = db.Table("algorithm").Where("is_del = false and point_uuid = ?", pointUUID).Count(&res.Total).Error; err != nil {
+		mainlog.Error("获取算法总数失败 %v", err)
+		ErrCheck(c, returnData, err, "获取算法总数失败")
+		return err
+	}
+
+	if err = db.Table("algorithm").Where("is_del = false and point_uuid = ?", pointUUID).Find(&res.List).Error; err != nil {
+		mainlog.Error("获取算法失败 %v", err)
+		ErrCheck(c, returnData, err, "获取算法失败")
+		return err
+	}
+
+	ErrNil(c, returnData, res, "获取解析方式成功")
+	return
+}
+
+// 获取解析方式列表
+func GetParsingHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var parsing mod.ParsingRESP
+	pageSizeStr := c.QueryParam("pageSize")
+	pageNumStr := c.QueryParam("pageNum")
+
+	if pageNumStr == "" {
+		pageNumStr = "0"
+	}
+	if pageSizeStr == "" {
+		pageSizeStr = "99"
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		mainlog.Error("解析pageSize失败 %v", err)
+		ErrCheck(c, returnData, err, "解析pageSize失败")
+		return err
+	}
+	pageNum, err := strconv.Atoi(pageNumStr)
+	if err != nil {
+		mainlog.Error("解析pageNum失败 %v", err)
+		ErrCheck(c, returnData, err, "解析pageNum失败")
+		return err
+	}
+	if err = db.Table("parsing").Where("is_del = false").Offset((pageNum - 1) * pageSize).Limit(pageSize).Find(&parsing.List).Error; err != nil {
+		mainlog.Error("获取解析方式失败 %v", err)
+		ErrCheck(c, returnData, err, "获取解析方式失败")
+		return err
+	}
+
+	if err = db.Table("parsing").Where("is_del = false").Count(&parsing.Total).Error; err != nil {
+		mainlog.Error("获取解析方式失败 %v", err)
+		ErrCheck(c, returnData, err, "获取解析方式失败")
+		return err
+	}
+
+	ErrNil(c, returnData, parsing, "获取解析方式成功")
+	return
+}
+
+// 新增解析方式
+func AddParsingHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var parsingDTO mod.Parsing
+	if err = c.Bind(&parsingDTO); err != nil {
+		mainlog.Error("参数错误 %v", err)
+		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+
+	var parsing mod.Parsing
+	if err = db.Table("parsing").Where("name = ? AND is_del = false", parsingDTO.Name).Find(&parsing).Error; err != nil {
+		mainlog.Error("获取解析方式失败 %v", err)
+		ErrCheck(c, returnData, err, "获取解析方式失败")
+		return err
+	}
+	if parsing.Id != 0 {
+		err = errors.New("解析方式已存在")
+		ErrCheck(c, returnData, err, "解析方式已存在")
+		return err
+	}
+	parsingDTO.CreateTime = mod.GetCurrentTime()
+	parsingDTO.UpdateTime = mod.GetCurrentTime()
+	if err = db.Table("parsing").Create(&parsingDTO).Error; err != nil {
+		mainlog.Error("新增解析方式失败 %v", err)
+		ErrCheck(c, returnData, err, "新增解析方式失败")
+		return err
+	}
+	ErrNil(c, returnData, true, "新增解析方式成功")
+	return
+}
+
+// 删除解析方式
+func DeleteParsingHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
+		return err
+	}
+
+	if err = db.Table("parsing").Where("id = ?", id).Updates(&mod.Parsing{UpdateTime: mod.GetCurrentTime(), IsDel: true}).Error; err != nil {
+		mainlog.Error("删除解析方式失败 %v", err)
+		ErrCheck(c, returnData, err, "删除解析方式失败")
+		return err
+	}
+
+	ErrNil(c, returnData, true, "删除解析方式成功")
+	return
+}
+
+// 更新解析方式
+func UpdateParsingHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var parsing, parsingDTO mod.Parsing
+	if err = c.Bind(&parsing); err != nil {
+		mainlog.Error("参数错误 %v", err)
+		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+
+	if err = db.Table("parsing").Where("id != ? AND name = ? AND is_del = false", parsing.Id, parsing.Name).Find(&parsingDTO).Error; err != nil {
+		mainlog.Error("更新时，查重失败：%v", err)
+		ErrCheck(c, returnData, err, "更新时，查重失败")
+		return err
+	}
+
+	if parsingDTO.Id != 0 {
+		err = errors.New("解析方式已存在")
+		ErrCheck(c, returnData, err, "解析方式已存在")
+		return err
+	}
+
+	parsing.UpdateTime = mod.GetCurrentTime()
+	if err = db.Table("parsing").Updates(&parsing).Error; err != nil {
+		mainlog.Error("更新解析方式失败 %v", err)
+		ErrCheck(c, returnData, err, "更新解析方式失败")
+		return err
+	}
+	ErrNil(c, returnData, true, "更新解析方式成功")
+	return
+}
+
+// 获取故障标签
+func GetFaultTagHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var res mod.FaultTagVo
+	var faultTags []mod.FaultTag
+	if err = db.Table("fault_tag").Where("is_del = false").Order("id ASC").Find(&faultTags).Error; err != nil {
+		mainlog.Error("获取故障标签失败 %v", err)
+		ErrCheck(c, returnData, err, "获取故障标签失败")
+		return err
+	}
+	for _, tag := range faultTags {
+		if tag.Upper == 0 {
+			for _, tag2 := range faultTags {
+				if tag2.Upper == tag.Id {
+					for _, tag3 := range faultTags {
+						if tag3.Upper == tag2.Id {
+							res.List = append(res.List, tag3)
+							res.Total++
+						}
+					}
+				}
+			}
+		}
+	}
+	ErrNil(c, returnData, res, "获取故障标签成功")
+	return
+}
+
+// 新增故障标签
+func AddFaultTagHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var faultTag mod.FaultTag
+	if err = c.Bind(&faultTag); err != nil {
+		mainlog.Error("参数错误 %v", err)
+		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+
+	faultTag.CreateTime = mod.GetCurrentTime()
+	faultTag.UpdateTime = mod.GetCurrentTime()
+	if err = db.Table("fault_tag").Create(&faultTag).Error; err != nil {
+		mainlog.Error("新增故障标签失败 %v", err)
+		ErrCheck(c, returnData, err, "新增故障标签失败")
+		return err
+	}
+
+	ErrNil(c, returnData, true, "新增故障标签成功")
+	return
+}
+
+// 修改故障标签
+func UpdateFaultTagHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var faultTag mod.FaultTag
+	if err = c.Bind(&faultTag); err != nil {
+		mainlog.Error("参数错误 %v", err)
+		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+
+	faultTag.UpdateTime = mod.GetCurrentTime()
+	if err = db.Table("fault_tag").Where("id = ? AND is_del = false", faultTag.Id).Updates(&faultTag).Error; err != nil {
+		mainlog.Error("更新故障标签失败 %v", err)
+		ErrCheck(c, returnData, err, "更新故障标签失败")
+		return err
+	}
+
+	ErrNil(c, returnData, true, "更新故障标签成功")
+	return
+}
+
+// 删除时，如果删除的是一级标签，则需要将对应的二级标签进行删除
+func DeleteFaultTagHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	idStr := c.Param("id")
+	if idStr == "" {
+		mainlog.Error("参数错误")
+		ErrCheck(c, returnData, nil, "参数错误")
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
+		return
+	}
+
+	//首先查询当前标签所有的子标签
+	if err = db.Table("fault_tag").Where("id = ? AND is_del = false", id).Updates(&mod.FaultTag{UpdateTime: mod.GetCurrentTime(), IsDel: true}).Error; err != nil {
+		mainlog.Error("删除故障标签失败 %v", err)
+		ErrCheck(c, returnData, err, "删除故障标签失败")
+		return err
+	}
+
+	ErrNil(c, returnData, true, "删除故障标签成功")
+	return
+}
+
+// 新增故障反馈   1、新增故障反馈表单 2、更新对应部件 对应所有测点的数据表的标签
+func AddFaultFeedbackHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var faultFeedback mod.FaultBack
+
+	if err = c.Bind(&faultFeedback); err != nil {
+		mainlog.Error("参数错误 %v", err)
+		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+
+	tx := db.Begin()
+
+	//插入故障反馈表
+	faultFeedback.TimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", faultFeedback.FaultTime)
+	faultFeedback.CreateTime = mod.GetCurrentTime()
+	faultFeedback.UpdateTime = mod.GetCurrentTime()
+	if err = tx.Table("fault_back").Create(&faultFeedback).Error; err != nil {
+		tx.Rollback()
+		mainlog.Error("新增故障反馈失败 %v", err)
+		ErrCheck(c, returnData, err, "新增故障反馈失败")
+		return err
+	}
+
+	var idStr string
+	if err = tx.Table("machine").Where("uuid = ?", faultFeedback.MachineUUID).Select("id").Find(&idStr).Error; err != nil {
+		tx.Rollback()
+		mainlog.Error("查询风机id失败 %v", err)
+		ErrCheck(c, returnData, err, "查询风机id失败")
+		return err
+	}
+
+	//更新对应部件下所有测点的数据tag
+	if err = tx.Table("point").Joins("right join part on part.uuid = point.part_uuid").Where("part.uuid = ?", faultFeedback.PartUUID).Error; err != nil {
+		tx.Rollback()
+		mainlog.Error("查询所有 %v", err)
+		ErrCheck(c, returnData, err, "更新风机数据失败")
+		return err
+	}
+	if err = tx.Table("data_"+idStr).Where("point_uuid IN (?)", tx.Table("point").Select("point.uuid").
+		Joins("right join part on part.uuid = point.part_uuid").Where("part.uuid = ?", faultFeedback.PartUUID)).
+		Update("tag", faultFeedback.Tag).Error; err != nil {
+		tx.Rollback()
+		mainlog.Error("更新风机数据失败 %v", err)
+		ErrCheck(c, returnData, err, "更新风机数据失败")
+		return err
+	}
+
+	tx.Commit()
+	ErrNil(c, returnData, true, "新增故障反馈成功")
+	return
+}
+
+func GetFarmFaultFeedBackByIdHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	idStr := c.Param("id")
+	sourceStr := c.QueryParam("source")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
+		return
+	}
+
+	source, err := strconv.Atoi(sourceStr)
+	if err != nil {
+		mainlog.Error("source string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" source解析失败")
+		return
+	}
+
+	switch source {
+	case 0, 1:
+		var aler mod.FaultBackInfo
+		if err = db.Table("alert").
+			Select("alert.id id,alert.time_set time_set,alert.source source,alert.check_time check_time,alert.suggest suggest, alert.level status ,machine.uuid machine_uuid, part.uuid part_uuid, part.uuid part_uuid").
+			Joins("left join point on point.uuid = alert.point_uuid").Joins("left join part on part.uuid = point.part_uuid").
+			Joins("left join machine on machine.uuid = part.machine_uuid").Where("alert.id = ?", id).Find(&aler).Error; err != nil {
+			mainlog.Error("根据id查询故障反馈失败 %v", err)
+			ErrCheck(c, returnData, err, "根据id查询故障反馈失败")
+			return err
+		}
+		if aler.Id != 0 {
+			aler.FaultTime = mod.TimetoStrFormat("2006-01-02 15:04:05", aler.TimeSet)
+			ErrNil(c, returnData, aler, "根据id查询故障反馈成功")
+		} else {
+			ErrNil(c, returnData, nil, "根据id查询故障反馈成功")
+		}
+	case 2:
+		var faultFeedback mod.FaultBackInfo
+		if err = db.Table("fault_back fb").Select("fb.*, file.name fileName, file.dir fileDir").Joins("join file on file.id = fb.file_id").Where("fb.id = ? AND fb.is_del = false", id).Find(&faultFeedback).Error; err != nil {
+			mainlog.Error("根据id查询故障反馈失败 %v", err)
+			ErrCheck(c, returnData, err, "根据id查询故障反馈失败")
+			return err
+		}
+
+		if faultFeedback.Id != 0 {
+			faultFeedback.FaultTime = mod.TimetoStrFormat("2006-01-02 15:04:05", faultFeedback.TimeSet)
+			ErrNil(c, returnData, faultFeedback, "根据id查询故障反馈成功")
+		} else {
+			ErrNil(c, returnData, nil, "根据id查询故障反馈成功")
+		}
+	}
+	return
+}
+
+func DeleteFaultFeedbackHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	sourceStr := c.QueryParam("source")
+	fmt.Println(sourceStr)
+	idStr := c.Param("id")
+	if sourceStr == "" {
+		err = errors.New("参数错误")
+		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+	source, err := strconv.Atoi(sourceStr)
+	if err != nil {
+		ErrCheck(c, returnData, err, "source解析失败")
+		return err
+	}
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
+		return err
+	}
+
+	switch source {
+	case 0, 1:
+		ErrNil(c, returnData, nil, "删除故障反馈成功")
+	case 2:
+		var fault mod.FaultBack
+		if err = db.Table("fault_back").Where("id = ? and is_del = false", id).Find(&fault).Error; err != nil {
+			mainlog.Error("根据id查询故障反馈失败 %v", err)
+			ErrCheck(c, returnData, err, "根据id查询故障反馈失败")
+			return err
+		}
+		tx := db.Begin()
+		//首先删除关联文件
+		if err = tx.Table("file").Where("id = ?", fault.FileId).Updates(&mod.File{UpdateTime: mod.GetCurrentTime(), IsDel: true}).Error; err != nil {
+			tx.Rollback()
+			mainlog.Error("删除故障反馈失败 %v", err)
+			ErrCheck(c, returnData, err, "删除故障反馈失败")
+			return err
+		}
+		fault.UpdateTime = mod.GetCurrentTime()
+		fault.IsDel = true
+		if err = tx.Table("fault_back").Where("id = ?", id).Updates(&fault).Error; err != nil {
+			tx.Rollback()
+			mainlog.Error("删除故障反馈失败 %v", err)
+			ErrCheck(c, returnData, err, "删除故障反馈失败")
+			return err
+		}
+		ErrNil(c, returnData, true, "删除故障反馈成功")
+		tx.Commit()
+	}
+	return
+}
+
+func UpdateFaultFeedbackHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	sourceStr := c.QueryParam("source")
+	source, err := strconv.Atoi(sourceStr)
+	if err != nil {
+		mainlog.Error("source string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" source解析失败")
+		return
+	}
+	switch source {
+	case 0, 1:
+		return
+	case 2:
+		var faultFeedback mod.FaultBack
+		if err = c.Bind(&faultFeedback); err != nil {
+			mainlog.Error("参数错误 %v", err)
+			ErrCheck(c, returnData, err, "参数错误")
+			return err
+		}
+		faultFeedback.UpdateTime = mod.GetCurrentTime()
+		if err = db.Table("fault_back").Where("id = ? AND is_del = false", faultFeedback.Id).Updates(&faultFeedback).Error; err != nil {
+			mainlog.Error("更新故障反馈失败 %v", err)
+			ErrCheck(c, returnData, err, "更新故障反馈失败")
+			return err
+		}
+	}
+	return
+}
+
+func UploadFile(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	mainlog.Info("上传文件")
+	file, err := c.FormFile("files")
+	if err != nil {
+		mainlog.Error("上传文件失败 %v", err)
+		ErrCheck(c, returnData, err, "上传文件失败")
+		return err
+	}
+	flag := 0
+	var fileDTO mod.File
+	src, err := file.Open()
+	if err != nil {
+		flag = 1
+	}
+
+	defer src.Close()
+	fullFileName := file.Filename                                           //完整名
+	fileNameWithSuffix := path.Base(fullFileName)                           //文件名带后缀
+	fileSuffix := path.Ext(fileNameWithSuffix)                              //获取后缀
+	fileWithOutSuffix := strings.TrimSuffix(fileNameWithSuffix, fileSuffix) //文件名不带后缀
+	fileWithOutSuffixMD5 := utils.EncodeMD5(fileWithOutSuffix)              //文件名不带后缀exe -->  加密
+
+	fileDTO.Name = fullFileName
+	fileDTO.MD5Name = fileWithOutSuffixMD5 + fileSuffix
+
+	dataDir := "/upload/"
+	_, err = os.Stat(dataDir)
+	dirFlag := false
+	if err != nil {
+		if os.IsNotExist(err) {
+			mainlog.Info("文件夹不存在，创建文件夹")
+			err = os.Mkdir(dataDir, os.ModePerm)
+			if err != nil {
+				mainlog.Error("创建文件夹失败 %v", err)
+				dirFlag = true
+			}
+		} else {
+			dirFlag = true
+		}
+	}
+
+	if dirFlag {
+		flag = 2
+	}
+
+	dst, err := os.Create("." + dataDir + fileWithOutSuffixMD5 + fileSuffix)
+	if err != nil {
+		flag = 3
+
+	}
+
+	defer dst.Close()
+	if _, err = io.Copy(dst, src); err != nil {
+		flag = 4
+
+	}
+	fileDTO.Dir = dataDir + fileDTO.MD5Name
+	fileDTO.CreateTime = mod.GetCurrentTime()
+	fileDTO.UpdateTime = mod.GetCurrentTime()
+
+	//插入前，进行md5查重
+	var fileRESP mod.File
+	if err = db.Table("file").Where("md5_name = ?", fileDTO.MD5Name).Find(&fileRESP).Error; err != nil {
+		flag = 5
+
+	}
+	if fileRESP.Id != 0 {
+		flag = 6
+
+	}
+	if err = db.Table("file").Create(&fileDTO).Error; err != nil {
+		flag = 7
+	}
+	switch flag {
+	case 1:
+		err = errors.New("打开文件失败")
+	case 2:
+		err = errors.New("文件夹创建失败")
+	case 3:
+		err = errors.New("创建目标文件失败")
+	case 4:
+		err = errors.New("文件复制失败")
+	case 5:
+		err = errors.New("查重失败")
+	case 6:
+		err = errors.New("文件已存在")
+	case 7:
+		err = errors.New("插入数据库失败")
+	}
+
+	if flag == 0 {
+		ErrNil(c, returnData, fileDTO, "文件上传成功")
+	} else {
+		ErrCheck(c, returnData, err, "文件上传失败")
+
+	}
+	return
+}
+
+func GetAllFileHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	type FileRESP struct {
+		Total int64      `json:"total"`
+		List  []mod.File `json:"list"`
+	}
+
+	var resp FileRESP
+	if err = db.Table("file").Where("is_del = false").Count(&resp.Total).Error; err != nil {
+		mainlog.Error("获取文件列表失败 %v", err)
+		ErrCheck(c, returnData, err, "获取文件列表失败")
+		return
+	}
+
+	if err = db.Table("file").Where("is_del = false").Find(&resp.List).Error; err != nil {
+		mainlog.Error("获取文件列表失败 %v", err)
+		ErrCheck(c, returnData, err, "获取文件列表失败")
+		return
+	}
+
+	ErrNil(c, returnData, resp, "文件列表获取成功")
+	return
+}
+
+func DeleteFileHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	idStr := c.Param("id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, "id string转int失败")
+		return
+	}
+
+	if err = db.Table("file").Where("id = ?", id).Updates(&mod.File{UpdateTime: mod.GetCurrentTime(), IsDel: true}).Error; err != nil {
+		mainlog.Error("删除文件失败 %v", err)
+		ErrCheck(c, returnData, err, "删除文件失败")
+		return
+	}
+
+	ErrNil(c, returnData, nil, "文件删除成功")
+	return
+}
+
+// 测点趋势图获取模型名称，绘图时传递对应是英文名
+func GetModelsHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var res mod.ModelsVo
+	if err = db.Table("model").Where("is_del = false").Count(&res.Total).Error; err != nil {
+		mainlog.Error("获取模型列表失败 %v", err)
+		ErrCheck(c, returnData, err, "获取模型列表失败")
+		return
+	}
+
+	if err = db.Table("model").Where("is_del = false").Find(&res.List).Error; err != nil {
+		mainlog.Error("获取模型列表失败 %v", err)
+		ErrCheck(c, returnData, err, "获取模型列表失败")
+		return
+	}
+
+	ErrNil(c, returnData, res, "获取模型列表成功")
 	return
 }

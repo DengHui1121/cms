@@ -43,8 +43,8 @@ func (info *GormConfig) GormOpen() (db *gorm.DB, err error) {
 	newlogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
-			LogLevel: logger.Error,
-			Colorful: false,
+			LogLevel: logger.Info,
+			Colorful: true,
 		},
 	)
 	db, err = gorm.Open(mysql.New(mysql.Config{

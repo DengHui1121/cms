@@ -12,17 +12,31 @@ func MaptoStruct(mm interface{}, m interface{}) {
 	json.Unmarshal(mtemp, m)
 }
 
-//转时间戳
+// 转时间戳
 func StrtoTime(format string, timestr string) (t int64, err error) {
 	time, err := time.ParseInLocation(format, timestr, time.Local)
 	t = time.Unix()
 	return t, err
 }
+
+// 时间戳转换成字符串
+func TimetoStrFormat(format string, t int64) string {
+	return time.Unix(t, 0).Format(format)
+}
+
+func GetCurrentTime() string {
+	return time.Now().Local().Format("2006-01-02 15:04:05")
+}
+
+func GetCurrentTimeHHMM() string {
+	return time.Now().Local().Format("2006-01")
+}
+
 func TimetoStr(t int64) time.Time {
 	return time.Unix(t, 0)
 }
 
-//^ 根据测点id获取测点、风机、风场、公司id和name
+// ^ 根据测点id获取测点、风机、风场、公司id和name
 func PointtoFactory(db *gorm.DB, pid interface{}) (pmwid []string, pmwname []string, pmwuuid []string, err error) {
 	type iduuid struct {
 		ID   string
@@ -77,7 +91,7 @@ func PointtoFactory(db *gorm.DB, pid interface{}) (pmwid []string, pmwname []str
 	return
 }
 
-//^ 获得upper包含的测点的uuid!!
+// ^ 获得upper包含的测点的uuid!!
 func UppertoPoint(db *gorm.DB, upper string, id string) []string {
 	var pointuuids []string
 	db.Table("factory").

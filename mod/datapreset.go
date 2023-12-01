@@ -13,16 +13,17 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"time"
-	
+
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"gorm.io/gorm"
 )
 
-//将GBK编码的字符串转换为utf-8编码
+// 将GBK编码的字符串转换为utf-8编码
 func ConvertGBK2Str(gbkStr string) string {
 	//如果是[]byte格式的字符串，可以使用Bytes方法
 	b, err := simplifiedchinese.GBK.NewDecoder().String(gbkStr)
@@ -77,10 +78,12 @@ func isUtf8(data []byte) bool {
 }
 
 /*预处理从不同文件读入的波形数据*/
-func TypeRead(ftype string, src multipart.File) (info string, data []byte, err error) {
-	if ftype == "txt" {
-		return ReadTXTfile(src)
-	} else if ftype == "csv" {
+func TypeRead(ftype string, src multipart.File, parsing Parsing) (info string, data []byte, err error) {
+	fileSuffix := path.Ext(ftype)
+	fileNameWithOutSuffix := strings.TrimSuffix(ftype, fileSuffix)
+	if fileSuffix == ".txt" {
+		return ReadTXTfile(fileNameWithOutSuffix, src, parsing)
+	} else if fileSuffix == ".csv" {
 		return ReadCSVfile(src)
 	} else {
 		return ReadEXCELfile(src)
@@ -108,7 +111,7 @@ func ReadEXCELfile(file multipart.File) (info string, data []byte, err error) {
 	return info, buffer.Bytes(), nil
 }
 
-//从csv读入
+// 从csv读入
 func ReadCSVfile(file multipart.File) (info string, data []byte, err error) {
 	reader := csv.NewReader(file)
 	reader.LazyQuotes = true
@@ -133,25 +136,34 @@ func ReadCSVfile(file multipart.File) (info string, data []byte, err error) {
 		bdata := []byte(strings.TrimRight(csvdata[0], "0") + " ")
 		buffer.Write(bdata)
 	}
-	
+
 	return info, buffer.Bytes(), nil
 }
 
 // 从txt读取数据，其中数据按空格分开（按文件的约定）
-func ReadTXTfile(file multipart.File) (info string, data []byte, err error) {
+func ReadTXTfile(fileName string, file multipart.File, parsing Parsing) (info string, data []byte, err error) {
 	reader := bufio.NewReader(file)
-	info, err = reader.ReadString('\n')
+
+	switch parsing.Type {
+	case 0:
+		info, err = reader.ReadString('\n')
+		fmt.Println(info)
+	case 1:
+		info = fileName
+		fmt.Println(fileName)
+	}
+
 	//编码转换
 	if isUtf8([]byte(info)) {
 		info = strings.TrimSpace(info)
 	} else {
 		info = strings.TrimSpace(ConvertGBK2Str(info))
 	}
-	
+
 	if err != nil {
 		return info, nil, err
 	}
-	
+
 	//* 处理数据位数，依次写进buffer，最后存进数据库
 	var buffer bytes.Buffer
 	for {
@@ -172,30 +184,62 @@ func ReadTXTfile(file multipart.File) (info string, data []byte, err error) {
 	return info, buffer.Bytes(), err
 }
 
-//* 解析数据描述信息，将数据信息和数据存入数据库
-//* 数据格式：大唐江西太阳山风电场（0风场名）_风机#01（1风机名）_齿轮箱低速轴（2#测点）_径向（3#测点方向）_32.768K（4#数据长度）_25600HZ（5#采样频率）_Timewave（6#数据类型）_加速度（7#测量参数）_1RPM（#测量转速）_20220101201122（#测量时间年月日时分秒）
-func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte) error {
+// * 解析数据描述信息，将数据信息和数据存入数据库
+// * 数据格式：大唐江西太阳山风电场（0风场名）_风机#01（1风机名）_齿轮箱低速轴（2#测点）_径向（3#测点方向）_32.768K（4#数据长度）_25600HZ（5#采样频率）_Timewave（6#数据类型）_加速度（7#测量参数）_1RPM（#测量转速）_20220101201122（#测量时间年月日时分秒）
+func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing Parsing) error {
 	var err error
-	str := strings.Split(info, "_")
-	if len(str) != 10 {
-		err = errors.New("the format of file first line is wrong. ")
+	var dataInfo DataInfo
+	fmt.Println(parsing.Separator)
+	str := strings.Split(info, parsing.Separator)
+	if len(str) != parsing.Length {
+		err = errors.New("文件解析格式出现错误")
 		return err
 	}
-	wname := str[0]
-	mname := str[1]
-	ppname := str[2]
-	pdirection := str[3]
+	infoIndexs := strings.Split(parsing.DataInfo, parsing.Separator)
+	for key, value := range infoIndexs {
+		switch value {
+		case "0":
+			dataInfo.Windfarm = str[key]
+		case "1":
+			dataInfo.Machine = str[key]
+		case "2":
+			dataInfo.Point = str[key]
+		case "3":
+			dataInfo.Length = str[key]
+		case "4":
+			dataInfo.SampleRate = str[key]
+		case "5":
+			dataInfo.DataType = str[key]
+		case "6":
+			dataInfo.Parameter = str[key]
+		case "7":
+			dataInfo.Rpm = str[key]
+		case "8":
+			dataInfo.Time = str[key]
+		case "9":
+			dataInfo.Other = str[key]
+		}
+	}
+	wname := dataInfo.Windfarm
+	mname := dataInfo.Machine
+	ppname := dataInfo.Point
+	pdirection := dataInfo.Other
+
 	//根据文件名找到测点id并关联
-	var goalpoint Point
-	err = db.Table("windfarm").
+	midDB := db.Table("windfarm").
+		Select("point.ID AS ID", "point.name AS name").
 		Joins("join machine on windfarm.uuid = machine.windfarm_uuid").
 		Joins("join part on machine.uuid = part.machine_uuid").
 		Joins("join point on part.uuid = point.part_uuid").
 		Where("windfarm.name = ?", wname).
-		Where("machine.name = ?", mname).
-		Where("point.name = ? AND point.direction =?", ppname, pdirection).
-		Select("point.ID AS ID", "point.name AS name").
-		First(&goalpoint).Error
+		Where("machine.name = ?", mname)
+
+	var goalpoint Point
+	if pdirection == "" {
+		err = midDB.Where("point.name = ?", ppname).First(&goalpoint).Error
+	} else {
+		err = midDB.Where("point.name = ? AND point.direction = ?", ppname, pdirection).First(&goalpoint).Error
+	}
 	if err != nil {
 		err = errors.New("point missing." + err.Error())
 		return err
@@ -210,25 +254,25 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte) error {
 	}
 	dd.PointUUID = p.UUID
 	dd.Filepath = info
-	dd.Length = strings.ToUpper(str[4])
+	dd.Length = strings.ToUpper(dataInfo.Length)
 	// freq, err := strconv.ParseFloat(strings.Trim(strings.ToUpper(str[5]), "HZ"), 32)
-	freq, err := strconv.Atoi(strings.Split(strings.Trim(strings.ToUpper(str[5]), "HZ"), ".")[0])
+	freq, err := strconv.Atoi(strings.Split(strings.Trim(strings.ToUpper(dataInfo.SampleRate), "HZ"), ".")[0])
 	if err != nil {
 		return errors.New("频率格式错误" + err.Error())
 	}
 	dd.SampleFreq = freq
-	dd.Datatype = strings.ToUpper(str[6])
-	dd.Measuredefine = str[7]
-	rpm, err := strconv.ParseFloat(strings.Trim(str[8], "RPM"), 32)
+	dd.Datatype = strings.ToUpper(dataInfo.DataType)
+	dd.Measuredefine = dataInfo.Parameter
+	rpm, err := strconv.ParseFloat(strings.Trim(dataInfo.Rpm, "RPM"), 32)
 	if err != nil {
 		return errors.New("转速格式错误")
 	}
 	dd.Rpm = float32(rpm)
-	if len([]rune(str[9])) != 14 {
+	if len([]rune(dataInfo.Time)) != 14 {
 		return errors.New("时间格式错误，应包含年月日时分秒14位数。")
 	}
-	
-	ddtime, err := time.ParseInLocation("20060102150405", str[9], time.Local)
+
+	ddtime, err := time.ParseInLocation("20060102150405", dataInfo.Time, time.Local)
 	if err != nil {
 		return err
 	}
@@ -239,6 +283,7 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte) error {
 	var originy []float32 = make([]float32, 0)
 	origin := strings.Trim(string(dd.Wave.File), " ")
 	onum := strings.Split(origin, " ")
+	dd.Wave.DataString = origin
 	for _, v := range onum {
 		temp, _ := strconv.ParseFloat(v, 32)
 		originy = append(originy, float32(temp))
@@ -257,7 +302,7 @@ func (dbconfig *GormConfig) DataAnalysis(path string, arg ...string) ([]string, 
 	arg2 := []string{dbconfig.Addr, dbconfig.Admin, dbconfig.Password, dbconfig.Schema, dbconfig.Port}
 	arg2 = append(arg2, arg...)
 	cmd := exec.Command(path, arg2...)
-	
+
 	var str []string
 	buf, err := cmd.Output()
 	//两种系统换行处理
@@ -270,7 +315,7 @@ func (dbconfig *GormConfig) DataAnalysis(path string, arg ...string) ([]string, 
 	return str, err
 }
 
-//数据服务获取时频分析数据并存到数据库
+// 数据服务获取时频分析数据并存到数据库
 func (data *Data) DataAnalysis_2(db *gorm.DB, ipport string, fid string) (err error) {
 	ourl := "http://" + ipport + "/api/v1/data/trans/"
 	var originy []float32 = make([]float32, len(data.Wave.DataFloat)/4)
@@ -332,25 +377,25 @@ func (data *Data) DataAnalysis_2(db *gorm.DB, ipport string, fid string) (err er
 	return
 }
 
-// func AlertSearch(db *gorm.DB, ppmwcid []string, pointuuid string, measuredefine string) ([]alert.Band, error) {
-// 	//频带查询
-// 	var bband []alert.Band
-// 	err := db.Transaction(func(tx *gorm.DB) error {
-// 		//获取警报版本 测点信息和部件类型
-// 		var parttype string //部件名称
-// 		//如果有type字段
-// 		if err := tx.Table("part").Where("id=?", ppmwcid[1]).Select("name").Scan(&parttype).Error; err != nil {
-// 			return err
-// 		}
-// 		//从警报标准表获取标准值
-// 		if err := tx.Table("band").Where("type=? AND value=?", parttype, measuredefine).
-// 			Find(&bband).Error; err != nil {
-// 			return err
-// 		}
-// 		return nil
-// 	})
-// 	return bband, err
-// }
+//	func AlertSearch(db *gorm.DB, ppmwcid []string, pointuuid string, measuredefine string) ([]alert.Band, error) {
+//		//频带查询
+//		var bband []alert.Band
+//		err := db.Transaction(func(tx *gorm.DB) error {
+//			//获取警报版本 测点信息和部件类型
+//			var parttype string //部件名称
+//			//如果有type字段
+//			if err := tx.Table("part").Where("id=?", ppmwcid[1]).Select("name").Scan(&parttype).Error; err != nil {
+//				return err
+//			}
+//			//从警报标准表获取标准值
+//			if err := tx.Table("band").Where("type=? AND value=?", parttype, measuredefine).
+//				Find(&bband).Error; err != nil {
+//				return err
+//			}
+//			return nil
+//		})
+//		return bband, err
+//	}
 func AlertSearch(db *gorm.DB, ppmwcid []string, pointuuid string, measuredefine string) ([]alert.Band, error) {
 	//频带查询
 	var bband []alert.Band
@@ -407,13 +452,13 @@ func BandUpdate(db *gorm.DB, pdata *Data, bband []alert.Band) {
 			//TODO 解析到对应结构体
 			databv[fmt.Sprintf("bv%v", k+1)] = newrange
 		}
-		
+
 	}
 	// var edata Data
 	MaptoStruct(databv, pdata)
 }
 
-//*  to byte编码
+// *  to byte编码
 func Encode(src interface{}) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, src); err != nil {
@@ -422,7 +467,7 @@ func Encode(src interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-//*  to byte解码，定义时候需先确定长度
+// *  to byte解码，定义时候需先确定长度
 func Decode(b []byte, dst interface{}) error {
 	buf := bytes.NewBuffer(b)
 	if err := binary.Read(buf, binary.LittleEndian, dst); err != nil {

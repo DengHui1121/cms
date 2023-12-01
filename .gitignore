@@ -1,6 +1,6 @@
 .vscode/
 vendor/
-xncsm_3.sql
+xncms_3.sql
 dist/
 vendor.zip
 cmsProgram.exe~
@@ -9,3 +9,7 @@ log/
 analysis/
 cmsProgram.exe
 main.exe
+upload/
+示例文件/
+output/
+cmsProgram - 副本.exe

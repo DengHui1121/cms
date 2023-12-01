@@ -2,6 +2,7 @@ package main
 
 //cms 对所有子程序的管理和启动
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
@@ -194,24 +195,24 @@ func (mp *ModProcess) exec() error {
 }
 func (mp *ModProcess) Run() (err error) {
 	mp.cmd = exec.Command(mp.Dir, mp.Args...)
-	/*
-		// //实时获取输出参数
-		// // 获取输出管道
-		stdout, err := mp.cmd.StdoutPipe()
-		if err != nil {
-			return err
-		}
-		// 在goroutine中循环读取输出
-		go func() {
-			reader := bufio.NewReader(stdout)
-			for {
-				line, _, err := reader.ReadLine()
-				if err != nil {
-					break
-				}
-				fmt.Println(string(line))
+
+	//实时获取输出参数
+	// 获取输出管道
+	stdout, err := mp.cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	// 在goroutine中循环读取输出
+	go func() {
+		reader := bufio.NewReader(stdout)
+		for {
+			line, _, err := reader.ReadLine()
+			if err != nil {
+				break
 			}
-		}()*/
+			fmt.Println(string(line))
+		}
+	}()
 	err = mp.cmd.Start()
 	if err != nil {
 		mainlog.Error("启动%s模块失败 Error:%s", mp.Name, err)

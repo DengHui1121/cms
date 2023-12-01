@@ -3,7 +3,9 @@
 package mod
 
 import (
+	"errors"
 	"fmt"
+	"github.com/go-resty/resty/v2"
 	"io"
 	"main/alert"
 	"strconv"
@@ -320,6 +322,7 @@ func (plot *DatatoPlot) CPlot(db *gorm.DB, tableprefix string, fid string, iid s
 		Where("time_set <= ? and time_set>=?", data.TimeSet, stime).Where("measuredefine=?", data.Measuredefine)
 	db.Table("(?) as u", sub1).Order("time_set").Limit(10000).Offset(0).Select("time_set", "id").Find(&hd1).Select(ctype).Find(&hd1f)
 	db.Table("(?) as u", sub2).Order("time_set").Limit(10000).Offset(0).Select("time_set", "id").Find(&hd2).Select(ctype).Find(&hd2f)
+
 	historydata = append(hd1, hd2...)
 	if err != nil {
 		return err
@@ -398,12 +401,14 @@ func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 
 // 最新一百条数据
 func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string) (err error) {
+	// monthStart := time.Now().Format("2006-01")
+	// monthEnd := time.Now().AddDate(0, -2, 0).Format("2006-01")
 	for k, v := range plot.Currentplot {
 		var tempd []Data
 		var point Point
 		db.Table("point").Where("id=?", v.PointId).Select("uuid").First(&point)
 		var idgroup []string
-		//* 100条数据折线图
+		//* 最近三个月的数据
 		sub := db.Table("data_"+fid).
 			Where("point_uuid=?", point.UUID).
 			Order("time_set desc").Limit(100)
@@ -561,6 +566,161 @@ func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
 		return err
 	}
 
+	var algorithms []Algorithm
+	if err = db.Table("algorithm").Where("point_uuid = ?", pdata.PointUUID).Find(&algorithms).Error; err != nil {
+		err = errors.New("未找到算法")
+		return err
+	}
+
+	var postBody AlgorithmReqBody
+	if err = db.Table("point").Select("windfarm.`desc` windfarmName, machine.`name` machineName, point.`name` pointName").Joins("left join part on part.uuid = point.part_uuid").
+		Joins("left join machine on machine.uuid= part.machine_uuid").Joins("left join windfarm on windfarm.uuid = machine.windfarm_uuid").Where("point.uuid = ?", pdata.PointUUID).
+		Find(&postBody).Error; err != nil {
+		return err
+	}
+	//postBody.MachineName = "1#"
+	//postBody.WindfarmName = "马鬃山风场"
+	//postBody.PointName = "main_frontbearing_1A_5000Hz"
+	split := strings.Split(pdata.Wave.DataString, " ")
+	if len(split) != 8192 {
+		return errors.New("数据长度不对")
+	}
+	postBody.Data = pdata.Wave.DataString
+	postBody.SampleRate = strconv.Itoa(pdata.SampleFreq) + "Hz"
+	postBody.SampleTime = time.Unix(pdata.TimeSet, 0).Format("2006_01_02_15:04")
+	postBody.Rpm = strconv.Itoa(int(pdata.Rpm)) + "rpm"
+	client := resty.New()
+	for _, algorithm := range algorithms {
+		switch algorithm.Type {
+		case "A":
+			var responseBody AlgorithmRepBodyA
+			resp, err := client.R().SetHeader("Content-Type", "application/json").SetBody(postBody).SetResult(&responseBody).Post(algorithm.Url)
+			fmt.Println(string(resp.Body()))
+			if err != nil {
+				err = errors.New("算法请求发起失败。err:" + err.Error())
+				return err
+			} else {
+				if resp.StatusCode() != 200 {
+					err = errors.New("算法请求失败。err:" + resp.Status())
+					return err
+				}
+				if responseBody.Success == "True" && responseBody.Error == "0" {
+					//将responseBody中的TypiFeatureSource转换成responseBody.TypiFeature
+					for index, value := range responseBody.TypiFeatureSource {
+						switch index {
+						case 0:
+							responseBody.TypiFeature.MeanFre = float64(value)
+						case 1:
+							responseBody.TypiFeature.SquareFre = float64(value)
+						case 2:
+							responseBody.TypiFeature.GravFre = float64(value)
+						case 3:
+							responseBody.TypiFeature.SecGravFre = float64(value)
+						case 4:
+							responseBody.TypiFeature.GravRatio = float64(value)
+						case 5:
+							responseBody.TypiFeature.StandDeviate = float64(value)
+						}
+					}
+					pdata.TypiFeature = responseBody.TypiFeature
+					if err = db.Table("data_" + fid).Omit("Wave").Updates(&pdata).Error; err != nil {
+						err = errors.New("数据更新失败")
+						return err
+					}
+					algorithmResultA := AlgorithmResultA{
+						DataUUID:       pdata.UUID,
+						AlgorithmID:    algorithm.Id,
+						FTendencyFloat: responseBody.FTendency.Translate(),
+						TTendencyFloat: responseBody.TTendency.Translate(),
+						TypiFeature:    responseBody.TypiFeature,
+						CreateTime:     GetCurrentTime(),
+						UpdateTime:     GetCurrentTime(),
+					}
+					//插入结果表
+					if err = db.Table("algorithm_result_a").Create(&algorithmResultA).Error; err != nil {
+						return err
+					}
+				} else if responseBody.Success == "False" && responseBody.Error == "0" {
+					err = errors.New("算法运行异常")
+				} else {
+					switch responseBody.Error {
+					case "1":
+						err = errors.New("风场名错误")
+					case "2":
+						err = errors.New("风机号错误")
+					case "3":
+						err = errors.New("测点名错误")
+					case "4":
+						err = errors.New("数据长度错误")
+					case "5":
+						err = errors.New("采样频率错误")
+					case "6":
+						err = errors.New("风速错误 ")
+					}
+				}
+
+			}
+		case "B":
+			var responseBody AlgorithmRepBodyB
+			resp, err := client.R().SetHeader("Content-Type", "application/json").SetBody(postBody).SetResult(&responseBody).Post(algorithm.Url)
+			if err != nil {
+				err = errors.New("算法请求发起失败。err:" + err.Error())
+				return err
+			} else {
+				if resp.StatusCode() != 200 {
+					err = errors.New("算法请求失败。err:" + resp.Status())
+					return err
+				}
+				if responseBody.Success == "True" && responseBody.Error == "0" {
+					//故障诊断结果和概率插入报警表
+					algorithmResultB := AlgorithmResultB{
+						DataDTO:     responseBody.Data.Translate(),
+						DataUUID:    pdata.UUID,
+						AlgorithmID: algorithm.Id,
+						CreateTime:  GetCurrentTime(),
+						UpdateTime:  GetCurrentTime(),
+					}
+					//插入结果表
+					if err = db.Table("algorithm_result_b").Create(&algorithmResultB).Error; err != nil {
+						err = errors.New("故障诊断结果插入失败")
+						return err
+					}
+					//插入报警表
+					aler := Alert{
+						DataUUID:  pdata.UUID,
+						PointUUID: pdata.PointUUID,
+						Location:  postBody.PointName,
+						Type:      "预警算法",
+						Strategy:  algorithm.Name,
+						Desc:      responseBody.Data.FaultName,
+						TimeSet:   pdata.TimeSet,
+						Rpm:       pdata.Rpm,
+						Source:    0,
+					}
+					if err = db.Table("alert").Create(&aler).Error; err != nil {
+						err = errors.New("报警插入失败")
+					}
+				} else if responseBody.Success == "False" && responseBody.Error == "0" {
+					err = errors.New("算法运行失败")
+				} else {
+					switch responseBody.Error {
+					case "1":
+						err = errors.New("风场名错误")
+					case "2":
+						err = errors.New("风机号错误")
+					case "3":
+						err = errors.New("测点名错误")
+					case "4":
+						err = errors.New("数据长度错误")
+					case "5":
+						err = errors.New("采样频率错误")
+					case "6":
+						err = errors.New("风速错误 ")
+					}
+				}
+			}
+		}
+	}
 	//另外线程 故障诊断 加入goroutine
 	go func() {
 		//TODO DEBUG 报警 报警go进程，不耽误数据导入？

@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	
+
 	"gorm.io/gorm"
 )
 
-//* 算法索引 变量
+// * 算法索引 变量
 var ao map[string]AnalysisOption = map[string]AnalysisOption{
 	"envelop": {
 		Value:        1,
@@ -58,18 +58,18 @@ func GetAnalysisOption() []AnalysisOption {
 
 //! 全部改为float32的类型 因此写的数据为4+4+count*4
 
-//* 前四个字节的信息
+// * 前四个字节的信息
 type ShmData struct {
 	Cmd   float32
 	Count float32
 }
 
-//* 传输的数据
+// * 传输的数据
 type FData struct {
 	Value []float32
 }
 
-//* 共享内存信息  名称、尺寸
+// * 共享内存信息  名称、尺寸
 type ShmInfo struct {
 	Name  string
 	Count float32
@@ -200,7 +200,7 @@ type ShmInfo struct {
 // 	}
 // }
 
-//* 原始波形图
+// * 原始波形图
 func (plot *AnalysetoPlot) OringinPlot(db *gorm.DB, fid string, iid string) (freq int, err error) {
 	var dd Data
 	dtable := "data_" + fid
@@ -226,21 +226,23 @@ func (plot *AnalysetoPlot) OringinPlot(db *gorm.DB, fid string, iid string) (fre
 	return freq, nil
 }
 
-//传递数据图
-// func (plot *AnalysetoPlot) Plot(xstep float64, si ShmInfo, legend string) (err error) {
-// 	var analysedata SinglePlot
-// 	fdata, err := ReadData(si)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	x := XGenerate(xstep, len(fdata.Value))
-// 	analysedata.Xaxis = x
-// 	analysedata.Yaxis = fdata.Value
-// 	analysedata.Legend = legend
-// 	plot.Plots = append(plot.Plots, analysedata)
-// 	return nil
-// }
-//*普通算法画图
+// 传递数据图
+//
+//	func (plot *AnalysetoPlot) Plot(xstep float64, si ShmInfo, legend string) (err error) {
+//		var analysedata SinglePlot
+//		fdata, err := ReadData(si)
+//		if err != nil {
+//			return err
+//		}
+//		x := XGenerate(xstep, len(fdata.Value))
+//		analysedata.Xaxis = x
+//		analysedata.Yaxis = fdata.Value
+//		analysedata.Legend = legend
+//		plot.Plots = append(plot.Plots, analysedata)
+//		return nil
+//	}
+//
+// *普通算法画图
 func (plot *AnalysetoPlot) Plot(db *gorm.DB, xstep float64, tempid uint, legend string) (err error) {
 	var analysedata SinglePlot
 	dtable := "temp"
@@ -264,7 +266,7 @@ func (plot *AnalysetoPlot) Plot(db *gorm.DB, xstep float64, tempid uint, legend 
 				return
 			}
 		}
-		
+
 	}()
 	select {
 	//TODO 补充超时
@@ -279,7 +281,7 @@ func (plot *AnalysetoPlot) Plot(db *gorm.DB, xstep float64, tempid uint, legend 
 		}
 		origin := strings.Trim(string(tempd.Data), " ")
 		onum := strings.Split(origin, " ")
-		
+
 		for _, v := range onum {
 			temp, _ := strconv.ParseFloat(v, 32)
 			analysedata.Yaxis = append(analysedata.Yaxis, float32(temp))
@@ -300,10 +302,10 @@ func (plot *AnalysetoPlot) Plot_2(db *gorm.DB, xstep float64, yData []float32, l
 	analysedata.Legend = legend
 	plot.Plots = append(plot.Plots, analysedata)
 	return
-	
+
 }
 
-//*阶次图画图
+// *阶次图画图
 func (plot *AnalysetoPlot) JPlot(db *gorm.DB, tempid uint, legend string) (err error) {
 	var analysedata SinglePlot
 	dtable := "temp"
@@ -315,7 +317,7 @@ func (plot *AnalysetoPlot) JPlot(db *gorm.DB, tempid uint, legend string) (err e
 	go func() {
 		for {
 			err = db.Table(dtable).Select("complete").Last(&tempd, tempid).Error
-			
+
 			if err != nil {
 				return
 			}
@@ -328,7 +330,7 @@ func (plot *AnalysetoPlot) JPlot(db *gorm.DB, tempid uint, legend string) (err e
 				return
 			}
 		}
-		
+
 	}()
 	select {
 	//TODO 补充超时
@@ -343,7 +345,7 @@ func (plot *AnalysetoPlot) JPlot(db *gorm.DB, tempid uint, legend string) (err e
 		}
 		origin := strings.Trim(string(tempd.Data), " ")
 		onum := strings.Split(origin, " ")
-		
+
 		for _, v := range onum {
 			temp, _ := strconv.ParseFloat(v, 32)
 			analysedata.Yaxis = append(analysedata.Yaxis, float32(temp))
@@ -365,7 +367,7 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 		return err
 	}
 	var temp Temp
-	
+
 	db.Table("temp").Create(&temp)
 	switch atype {
 	case "envelop":
@@ -383,9 +385,9 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 		for k := range arg {
 			carg = carg + " " + arg[k]
 		}
-		
+
 		dbconfig.DataAnalysis(exepath, "wave_"+fid, "data_"+fid, dataidstr, carg, fmt.Sprintf("%v", temp.ID))
-		
+
 		err = m.Plot(db, xstep, temp.ID, "上包络曲线")
 		if err != nil {
 			break
@@ -397,7 +399,7 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 			break
 		}
 		var xstep float64 = 1000 / float64(freq)
-		
+
 		carg := "3" + " " + strconv.Itoa(freq)
 		//参数校验
 		if len(arg) != 3 {
@@ -418,7 +420,7 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 		if arg[1] == "0" {
 			arg[1] = strconv.Itoa(freq / 2)
 		}
-		
+
 		for k := range arg {
 			carg = carg + " " + arg[k]
 		}
@@ -446,13 +448,13 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 			break
 		}
 		var xstep float64 = 1000 / float64(refreq)
-		
+
 		dbconfig.DataAnalysis(exepath, "wave_"+fid, "data_"+fid, dataidstr, carg, fmt.Sprintf("%v", temp.ID))
 		err = m.Plot(db, xstep, temp.ID, "重采样曲线")
 		if err != nil {
 			break
 		}
-	
+
 	case "spectrum":
 		var freq int
 		db.Table("data_"+fid).Select("sample_freq").Where("id=?", dataidstr).Scan(&freq)
@@ -482,20 +484,20 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 			err = errors.New("重复点数应小于窗长度")
 			break
 		}
-		
+
 		for k := range arg {
 			carg = carg + " " + arg[k]
 		}
 		//窗长度的1/2 向上取整
 		//采样频率/（窗长度/2）
 		var xstep float64 = float64(freq) / math.Ceil(float64(wlen)/2)
-		
+
 		dbconfig.DataAnalysis(exepath, "wave_"+fid, "data_"+fid, dataidstr, carg, fmt.Sprintf("%v", temp.ID))
 		err = m.Plot(db, xstep, temp.ID, "自分析频谱")
 		if err != nil {
 			break
 		}
-	
+
 	case "order":
 		//根据起始时间获取转速id
 		var data Data
@@ -514,7 +516,7 @@ func (m *AnalysetoPlot) AnalyseHandler(dbconfig *GormConfig, exepath string, aty
 			err = errors.New("未找到相同起始时间的转速数据")
 			break
 		}
-		
+
 		arg := make([]string, 3)
 		arg[0] = fmt.Sprintf("%v", rpmdata.ID)
 		arg[1] = fmt.Sprintf("%v", data.SampleFreq)
@@ -826,7 +828,7 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 			window = "hanning"
 		} else {
 			window = "rectangular"
-			
+
 		}
 		postData = &DataPost00{
 			Datafloat: originy,
@@ -837,13 +839,13 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 			},
 		}
 		postData.Analysis(url)
-		
+
 		var xstep float64 = float64(data.SampleFreq) / math.Ceil(float64(wlen)/2)
 		err = m.Plot_2(db, xstep, postData.Backfloat, "自分析频谱")
 		if err != nil {
 			break
 		}
-	
+
 	case "envelop":
 		//包络提取
 		url = ourl + ao[keyfunc].DataUrl
@@ -869,7 +871,7 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 		if err != nil {
 			break
 		}
-	
+
 	case "filter":
 		//滤波
 		url = ourl + ao[keyfunc].DataUrl
@@ -905,7 +907,7 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 			ai = data.SampleFreq / 2
 		}
 		postData.UpFr = ai
-		
+
 		if arg[2] == "1" {
 			postData.Extension = "1" //1
 		} else {
@@ -921,11 +923,11 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 		if err != nil {
 			break
 		}
-	
+
 	case "resample":
 		//重采样
 		url = ourl + ao[keyfunc].DataUrl
-		
+
 		postData = &DataPost00{
 			Datafloat: originy,
 			Index00: Index00{
@@ -952,7 +954,7 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 		if err != nil {
 			break
 		}
-	
+
 	case "order":
 		//阶次谱
 		url = ourl + ao[keyfunc].DataUrl
@@ -990,7 +992,7 @@ func (m *AnalysetoPlot) AnalyseHandler_2(db *gorm.DB, ipport string, keyfunc str
 		if err != nil {
 			break
 		}
-		
+
 	}
 	return
 }
@@ -1000,12 +1002,12 @@ func (postData *DataPost00) Analysis(url string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postBody))
 	if err != nil {
 		return err
 	}
-	
+
 	// 读取响应内容
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(postData)
@@ -1019,8 +1021,9 @@ func (postData *DataPost00) Analysis(url string) error {
 }
 
 type AnalysisOption struct {
-	Value        int    `json:"value"`
-	Label        string `json:"label"`
+	Value        int    `json:"id"`
+	Label        string `json:"name"`
 	RpmAvailable bool   `json:"rpm_available"`
 	DataUrl      string `json:"-"`
+	Type         string `json:"type"`
 }
