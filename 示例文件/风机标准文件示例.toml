@@ -9,6 +9,7 @@ unit = "g" #风机数据y轴单位：g
 [[parts]] #一个部件
 name = "主轴承#1" #部件名称
 type = "主轴承" #部件类型
+nameEn = "MBR"
 module = "CMS" #所属模块。约定有CMS BMS TMS，备用。
 
 #[[parts]]部件下的通用特征值1
@@ -67,16 +68,19 @@ suggest="检修"          #处理建议，可人为定义
 #[[parts]]部件下的测点
 [[parts.points]]    #部件下的测点信息
 name="主轴承水平"   #必须，测点名，根据风场_风机_测点名匹配数据
+nameEn="MBR_H"
 direction="水平"    #必须，测点方向
 
 #[[parts]]部件下的测点，另起一个
 [[parts.points]]
 name="主轴承垂直"
+nameEn="MBR_V"
 direction="垂直"
 treeversion="1.2" #测点使用的特殊故障树，非必填。若有值则故障树报警以测点的故障树标准为准，否则以风机通用故障树版本为准。
 
 [[parts.points]]
 name="主轴承径向"
+nameEn="MBR_R"
 direction="径向" 
 
 #测点下的特殊特征值，当测点有和部件【英文名】同名的特征值，以测点特征值为准
@@ -162,12 +166,14 @@ suggest="检修"          #处理建议
 [[parts]] 
 name = "主轴承#2" #部件名称
 type = "主轴承" #部件类型
+nameEn = "MBR"
 module = "CMS" #所属模块。约定有CMS BMS TMS，备用。
 
 #第三个部件
 [[parts]]
 name = "齿轮箱#1"
 type = "齿轮箱"
+nameEn = "GBX"
 module = "CMS"
 #第三个部件下的通用特征值
 [[parts.properties]]
@@ -198,6 +204,7 @@ suggest="检修"          #处理建议，可人为定义
 
 [[parts.points]]
 name="齿轮箱高速电机侧垂直"
+nameEn = "GBX_H_V"
 direction="垂直" 
 
 [[parts.points]]
@@ -283,6 +290,7 @@ direction="轴向"
 [[parts]]
 name = "发电机#1"
 type = "发电机"
+nameEn = "GEN"
 module = "CMS"
 
 

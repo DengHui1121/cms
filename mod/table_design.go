@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm/clause"
 	"main/alert"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -161,7 +162,7 @@ type Machine struct {
 	WindfarmID   uint   `gorm:"-" json:"windfield_id,string"`
 	WindfarmUUID string `json:"-"`
 	Name         string `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
-	Type         string `gorm:"not null; comment:风机类型" json:"model"`
+	Type         int    `gorm:"not null; comment:风机类型" json:"model"`
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`
 	// AlertVersion    string  `json:"alert_version,omitempty"`
@@ -173,15 +174,15 @@ type Machine struct {
 	Capacity        float32 `gorm:"column:capacity; comment:容量" json:"capacity,string"`
 	OverinsuredTime string  `gorm:"column:overinsuredTime;comment:过保时间" json:"overinsuredTime"`
 	Status          uint8   `gorm:"type:tinyint;default:0;comment:状态" json:"status,string"`
-	Genfactory      string  `gorm:"comment:发电机厂家" json:"genfactory"`     //TODO 发电机厂家
-	Gentype         string  `gorm:"comment:发电机型号" json:"gentype"`        //TODO 发电机型号
-	Gearfactory     string  `gorm:"comment:齿轮箱厂家" json:"gearfactory"`    //TODO 齿轮箱厂家
-	Geartype        string  `gorm:"comment:齿轮箱型号" json:"geartype"`       //TODO 齿轮箱型号
-	Mainshaffactory string  `gorm:"comment:主轴厂家" json:"mainshaffactory"` //TODO 主轴厂家
-	Mainshaftype    string  `gorm:"comment:主轴型号" json:"mainshaftype"`    //TODO 主轴型号
-	Bladefactory    string  `gorm:"comment:叶片厂家" json:"bladefactory"`    //TODO 叶片厂家
-	Bladetype       string  `gorm:"comment:叶片型号" json:"bladetype"`       //TODO 叶片型号
-	Health          float64 `gorm:"-" json:"health"`                     //全生命周期
+	Genfactory      string  `gorm:"comment:发电机厂家" json:"genfactory" toml:"genfactory"`    //TODO 发电机厂家
+	Gentype         string  `gorm:"comment:发电机型号" json:"gentype" toml:"gentype"`          //TODO 发电机型号
+	Gearfactory     string  `gorm:"comment:齿轮箱厂家" json:"gbxfactory" toml:"gbxfactory"`    //TODO 齿轮箱厂家
+	Geartype        string  `gorm:"comment:齿轮箱型号" json:"gbxtype" toml:"gbxtype"`          //TODO 齿轮箱型号
+	Mainshaffactory string  `gorm:"comment:主轴厂家" json:"mbrfactory" toml:"mbrfactory"`     //TODO 主轴厂家
+	Mainshaftype    string  `gorm:"comment:主轴型号" json:"mbrtype" toml:"mbrtype"`           //TODO 主轴型号
+	Bladefactory    string  `gorm:"comment:叶片厂家" json:"bladefactory" toml:"bladefactory"` //TODO 叶片厂家
+	Bladetype       string  `gorm:"comment:叶片型号" json:"bladetype" toml:"bladetype"`       //TODO 叶片型号
+	Health          float64 `gorm:"-" json:"health"`                                      //全生命周期
 	Tag             int     `gorm:"column:tag;comment:故障标签" json:"tag"`
 	//一年内故障次数
 	TotalAlertCount int    `json:"total_alert_count"  gorm:"-"`
@@ -279,7 +280,7 @@ type Part struct {
 	MachineUUID string       `json:"-" `
 	Name        string       `gorm:"not null; comment: 部件名" json:"part_name" toml:"name"`
 	Type        string       `gorm:"not null; comment: 部件类型" json:"part_type" toml:"type"`
-	TypeEN      string       `gorm:"not null; comment: 部件类型(英文)" json:"part_type_en" toml:"type"`
+	TypeEN      string       `gorm:"not null; comment: 部件类型(英文)" json:"part_type_en" toml:"nameEn"`
 	Tag         int          `gorm:"column:tag;comment:故障标签" json:"tag"`
 	Module      string       `gorm:"default:CMS; comment: 所属模块CMS BMS(叶片)TMS(塔架)" json:"module" ` //TODO 所属模块：CMS BMS（叶片） TMS（塔架）
 	Points      []Point      `json:"measuring_point" gorm:"foreignKey:PartUUID;references:UUID" `
@@ -366,7 +367,7 @@ func (u *Property) BeforeCreate(tx *gorm.DB) error {
 type Point struct {
 	Model_Equip  `gorm:"embedded"`
 	ID           uint         `gorm:"primarykey" json:"point_id,string"`
-	UUID         string       `gorm:"unique_index" json:"-"`
+	UUID         string       `gorm:"unique_index" json:"point_UUID"`
 	PartID       uint         `gorm:"-" json:"part_id,string" `
 	PartUUID     string       `json:"-"`
 	Name         string       `gorm:"not null; comment:测点名称" json:"point_name"`
@@ -375,7 +376,7 @@ type Point struct {
 	Data         []Data       `json:"data,omitempty" gorm:"foreignKey:PointUUID;references:UUID"`
 	Direction    string       `json:"direction"`                                //TODO 前端需要增加相关字段显示
 	LastDataTime time.Time    `json:"-" gorm:"default:2000-01-01 00:00:00.000"` //最后更新数据的时间
-	Location     string       `json:"location" gorm:"column:location; comment:测点英文"`
+	Location     string       `json:"point_nameEn" gorm:"column:location; comment:测点英文位置" toml:"nameEn"`
 	Properties   []Property   `json:"characteristic" gorm:"foreignKey:PointUUID;references:UUID" `
 	Bands        []alert.Band `json:"band" gorm:"foreignKey:PointUUID;references:UUID"`
 }
@@ -519,7 +520,7 @@ type Data struct {
 	Pitch1        float32 `json:"pitch1"`                                      //浆角1
 	Pitch2        float32 `json:"pitch2"`                                      //浆角2
 	Pitch3        float32 `json:"pitch3"`                                      //浆角3
-	Tag           int     `json:"tag"`                                         //故障标签
+	Tag           string  `json:"tag"`                                         //故障标签
 	Result        `json:"result" gorm:"embedded"`
 	Wave          Wave    `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
 	Alert         []Alert `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
@@ -597,7 +598,7 @@ type Alert struct {
 	Code             string            `gorm:"comment:报警类型代码" json:"code"`                                                 //预留 告警类型代码
 	Faulttype        int               `json:"faulttype" gorm:"column:faulttype; comment:故障标识"`                            //预留 故障标识
 	Source           uint8             `json:"source" gorm:"column:source; comment:报警来源"`                                  //0：自动 1：人工
-	Confirm          int               `json:"confirm" gorm:"column:confirm; default:2; comment:报警确认,0:无故障 1:与报警一致 2:待观察"` //TODO 0:无故障 1:与报警一致 2:待观察
+	Confirm          int               `json:"confirm" gorm:"column:confirm; default:1; comment:报警确认,0:无故障 1:与报警一致 2:待观察"` //TODO 0:无故障 1:与报警一致 2:待观察
 	Suggest          string            `json:"suggest" gorm:"column:suggest; comment:处理建议"`                                //TODO 增加处理建议 可编辑 显示在右下角
 	CheckTime        string            `json:"checkTime" gorm:"column:check_time; comment:检查时间"`                           //TODO 增加处理时间
 	Handle           uint8             `gorm:"type:tinyint" json:"handle"`                                                 //0为红色表示未处理，1为绿色表示已处理。
@@ -675,6 +676,7 @@ type LimitCondition struct {
 	Endtime       string  `json:"end_time" query:"end_time"`           //结束时间
 	Datatype      string  `json:"datatype query:"datatype"`            //数据类型
 	Measuredefine string  `json:"measuredefine" query:"measuredefine"` //测量方法
+	Tag           string  `json:"tag" query:"tag"`
 	Freq          string  `json:"freq" query:"freq"`
 }
 
@@ -764,7 +766,7 @@ type Data_Update struct {
 	Pitch1        float32 `json:"pitch1"`
 	Pitch2        float32 `json:"pitch2"`
 	Pitch3        float32 `json:"pitch3"`
-	Tag           int     `json:"tag"`
+	Tag           string  `json:"tag"`
 	Result        `json:"result" gorm:"embedded"`
 	TypiFeature
 }
@@ -809,7 +811,7 @@ type ChannelContent struct {
 	WaveDefDescription int     `json:"WaveDefDescription"` //波形定义描述
 	AcquisitionTime    string  `json:"AcquisitionTime"`    //波形采样时间
 	WaveData           string  `json:"WaveData"`           //波形数据
-	ChannelAlarmType   int     `json:"ChannelAlarmType"`   //通道报警类型
+	ChannelAlarmType   string  `json:"ChannelAlarmType"`   //通道报警类型
 	Eigenvalue         Result  `json:"Eigenvalue"`         //通道特征值
 }
 
@@ -835,6 +837,15 @@ var faultMap = map[int]string{
 	1: "峰值门限报警",
 }
 
+// @Title InsertFactoryData
+// @Description alarminfolist 为部件报警、 channelalarm为测点报警
+// @Author MuXi 2023-12-15 14:45:23
+// @Param db 实例数据库
+// @Param farmIdStr 风场id
+// @Param turbineIdStr 风机id
+// @Return data
+// @Return err
+// FIXME 2023/12/15 需要将数据写入数据库在算法调用前完成， 算法调用产生异常，直接抛出
 func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, turbineIdStr string) (data Data, err error) {
 	farmId, err := strconv.Atoi(farmIdStr)
 	if err != nil {
@@ -879,7 +890,7 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 	alarmInfoList := factoryData.AlarmInfo
 	// 部件报警信息不为空，
 	for _, alarmInfo := range alarmInfoList {
-		//部件报警信息不为空时，更新对应的部件status
+		//部件报警信息不为空时，更新对应的部件status， 是否需要插入到报警表中？
 		var machineUUID string
 		tx.Table("machine").Select("uuid").Where("id = ?", turbineId).Find(&machineUUID)
 		if err = tx.Table("part").Where("type_en = ? and machine_uuid = ?", alarmInfo.ComponentName, machineUUID).
@@ -890,6 +901,7 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 		}
 	}
 
+	// 测点信息
 	channelContentList := factoryData.CMSData.ChannelContentList
 	for _, channelContent := range channelContentList {
 		//接收通道数据
@@ -927,8 +939,9 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 		data.SampleFreq = int(channelContent.SampleRate)
 
 		data.Result = channelContent.Eigenvalue
-		err = tx.Table("data_" + turbineIdStr).Create(&data).Error
-		//波形数据不等于空时
+		err = tx.Table("data_" + turbineIdStr).Omit("Wave").Create(&data).Error
+
+		//波形数据不等于空时, 通信协议规定，数据为base64加密，首先进行解密，在进行数据操作。
 		if channelContent.WaveData != "" {
 			encodingString := channelContent.WaveData
 			decodedBytes, _ := base64.StdEncoding.DecodeString(encodingString)
@@ -940,7 +953,7 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 		if err != nil {
 			err = errors.New("数据分析失败")
 		}
-
+		// 防止前步插入数据失败
 		if data.ID == 0 {
 			err = tx.Table("data_" + turbineIdStr).Create(&data).Error
 			if err != nil {
@@ -950,6 +963,7 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 		} else {
 			err = tx.Table("data_" + turbineIdStr).Save(&data).Error
 		}
+		// 波形数据不等于空时，插入波形数据
 		if len(data.Wave.DataFloat) != 0 || len(data.Wave.SpectrumFloat) != 0 || len(data.Wave.SpectrumEnvelopeFloat) != 0 {
 			data.Wave.DataUUID = data.UUID
 			tx.Table("wave_"+turbineIdStr).Where("data_uuid=?", data.UUID).Select("id").Scan(&data.Wave)
@@ -989,20 +1003,31 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 				return
 			}
 		}
-		//通道报警类型
-		aler := Alert{
-			DataUUID:  data.UUID,
-			PointUUID: data.PointUUID,
-			Location:  point.Name,
-			Level:     3,
-			Strategy:  "通道报警",
-			Desc:      faultMap[channelContent.ChannelAlarmType],
-			TimeSet:   data.TimeSet,
-			Rpm:       data.Rpm,
-			Source:    0,
-			Suggest:   "检修",
+		//通道报警类型不为空的话, 通道报警个数不一定为一个，需要分割字符串后进行比对
+		if channelContent.ChannelAlarmType != "" {
+			splitStr := strings.Split(channelContent.ChannelAlarmType, ",")
+			for _, valueStr := range splitStr {
+				if valueStr != "" {
+					value, _ := strconv.Atoi(valueStr)
+					faultName := faultMap[value]
+					aler := Alert{
+						DataUUID:  data.UUID,
+						PointUUID: data.PointUUID,
+						Location:  point.Name,
+						Level:     3,
+						Strategy:  "通道报警",
+						Desc:      faultName,
+						TimeSet:   data.TimeSet,
+						Rpm:       data.Rpm,
+						Source:    0,
+						Suggest:   "检修",
+					}
+					id := CheckTagExist(tx, point.UUID, faultName)
+					tx.Table("data_"+turbineIdStr).Where("uuid =?", data.UUID).Update("alert_id", id)
+					data.Alert = append(data.Alert, aler)
+				}
+			}
 		}
-		data.Alert = append(data.Alert, aler)
 		//构建算法请求体
 		requestBody := AlgorithmReqBody{
 			WindfarmName: farm.Name,
@@ -1015,131 +1040,64 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 		}
 		//根据测点uuid查询相关算法
 		var algorithms []Algorithm
-		if err = tx.Table("algorithm").Where("point_uuid =?", point.UUID).Find(&algorithms).Error; err != nil {
+		if err = tx.Table("algorithm").Where("point_uuid = ? AND enabled = true", point.UUID).Find(&algorithms).Error; err != nil {
 			err = errors.New("查询算法信息错误")
 			tx.Rollback()
 			return
 		}
 		//使用resty包发送算法请求，根据算法类型使用不同的响应体接收返回值，存入对应的数据库
-		if len(algorithms) > 0 {
-			client := resty.New()
-			for _, algorithm := range algorithms {
-				switch algorithm.Type {
-				case "A":
-					var responseBody AlgorithmRepBodyA
-					resp, err2 := client.R().SetHeader("Content-Type", "application/json").SetBody(requestBody).SetResult(&responseBody).Post(algorithm.Url)
-					if err2 != nil {
-						err = errors.New("算法请求失败。err:" + err.Error())
-						return
-					} else {
-						if resp.StatusCode() != 200 {
-							err = errors.New("算法请求失败。err:" + resp.Status())
-							return
-						}
-						if responseBody.Success == "True" && responseBody.Error == "0" {
-							//将responseBody中的TypiFeatureSource转换成responseBody.TypiFeature
-							for index, value := range responseBody.TypiFeatureSource {
-								switch index {
-								case 0:
-									responseBody.TypiFeature.MeanFre = float64(value)
-								case 1:
-									responseBody.TypiFeature.SquareFre = float64(value)
-								case 2:
-									responseBody.TypiFeature.GravFre = float64(value)
-								case 3:
-									responseBody.TypiFeature.SecGravFre = float64(value)
-								case 4:
-									responseBody.TypiFeature.GravRatio = float64(value)
-								case 5:
-									responseBody.TypiFeature.StandDeviate = float64(value)
-								}
-							}
-							data.TypiFeature = responseBody.TypiFeature
-							if err = tx.Table("data_" + turbineIdStr).Save(&data).Error; err != nil {
-								err = errors.New("数据更新失败")
-								tx.Rollback()
-								return
-							}
-							algorithmResultA := AlgorithmResultA{
-								DataUUID:       data.UUID,
-								AlgorithmID:    algorithm.Id,
-								FTendencyFloat: responseBody.FTendency.Translate(),
-								TTendencyFloat: responseBody.TTendency.Translate(),
-								TypiFeature:    responseBody.TypiFeature,
-								CreateTime:     GetCurrentTime(),
-								UpdateTime:     GetCurrentTime(),
-							}
-							//插入结果表GetCurrentTime
-							if err = tx.Table("algorithm_result_a").Create(&algorithmResultA).Error; err != nil {
-								err = errors.New("插入算法结果失败")
-								tx.Rollback()
-								return
-							}
-						} else if responseBody.Success == "False" && responseBody.Error == "0" {
-							err = errors.New("算法运行异常")
-							tx.Rollback()
-							return
-						} else {
-							switch responseBody.Error {
-							case "1":
-								err = errors.New("风场名错误")
-							case "2":
-								err = errors.New("风机号错误")
-							case "3":
-								err = errors.New("测点名错误")
-							case "4":
-								err = errors.New("数据长度错误")
-							case "5":
-								err = errors.New("采样频率错误")
-							case "6":
-								err = errors.New("风速错误 ")
-							}
-						}
-					}
-				case "B":
-					var responseBody AlgorithmRepBodyB
-					resp, err3 := client.R().SetHeader("Content-Type", "application/json").SetBody(requestBody).SetResult(&responseBody).Post(algorithm.Url)
-					if err3 != nil {
-						err = errors.New("算法请求失败。err:" + err.Error())
-						return
-					}
+		client := resty.New()
+		for _, algorithm := range algorithms {
+			switch algorithm.Type {
+			case "A":
+				var responseBody AlgorithmRepBodyA
+				resp, err2 := client.R().SetHeader("Content-Type", "application/json").SetBody(requestBody).SetResult(&responseBody).Post(algorithm.Url)
+				if err2 != nil {
+					err = errors.New("算法请求失败。err:" + err.Error())
+					return
+				} else {
 					if resp.StatusCode() != 200 {
 						err = errors.New("算法请求失败。err:" + resp.Status())
 						return
 					}
-
 					if responseBody.Success == "True" && responseBody.Error == "0" {
-						//故障诊断结果和概率插入报警表
-						algorithmResultB := AlgorithmResultB{
-							DataUUID:    data.UUID,
-							AlgorithmID: algorithm.Id,
-							DataDTO:     responseBody.Data.Translate(),
-							CreateTime:  GetCurrentTime(),
-							UpdateTime:  GetCurrentTime(),
+						//将responseBody中的TypiFeatureSource转换成responseBody.TypiFeature
+						for index, value := range responseBody.TypiFeatureSource {
+							switch index {
+							case 0:
+								responseBody.TypiFeature.MeanFre = float64(value)
+							case 1:
+								responseBody.TypiFeature.SquareFre = float64(value)
+							case 2:
+								responseBody.TypiFeature.GravFre = float64(value)
+							case 3:
+								responseBody.TypiFeature.SecGravFre = float64(value)
+							case 4:
+								responseBody.TypiFeature.GravRatio = float64(value)
+							case 5:
+								responseBody.TypiFeature.StandDeviate = float64(value)
+							}
 						}
-						//插入结果表
-						if err = tx.Table("algorithm_result_b").Create(&algorithmResultB).Error; err != nil {
-							err = errors.New("故障诊断结果插入失败")
+						data.TypiFeature = responseBody.TypiFeature
+						if err = tx.Table("data_" + turbineIdStr).Save(&data).Error; err != nil {
+							err = errors.New("数据更新失败")
 							tx.Rollback()
 							return
 						}
-						//插入报警表
-						aler := Alert{
-							DataUUID:  data.UUID,
-							PointUUID: data.PointUUID,
-							Location:  point.Name,
-							Level:     3,
-							Strategy:  "预警算法",
-							Desc:      responseBody.Data.FaultName,
-							TimeSet:   data.TimeSet,
-							Rpm:       data.Rpm,
-							Source:    2,
-							Suggest:   "检修",
+						// 将结果转换后插入到数据库中
+						algorithmResultA := AlgorithmResultA{
+							DataUUID:       data.UUID,
+							AlgorithmID:    algorithm.Id,
+							FTendencyFloat: responseBody.FTendency.Translate(),
+							TTendencyFloat: responseBody.TTendency.Translate(),
+							TypiFeature:    responseBody.TypiFeature,
+							CreateTime:     GetCurrentTime(),
+							UpdateTime:     GetCurrentTime(),
 						}
-						data.Alert = append(data.Alert, aler)
-						if err = tx.Table("alert").Create(&aler).Error; err != nil {
+						//插入结果表GetCurrentTime
+						if err = tx.Table("algorithm_result_a").Create(&algorithmResultA).Error; err != nil {
+							err = errors.New("插入算法结果失败")
 							tx.Rollback()
-							err = errors.New("数据通道报警插入失败")
 							return
 						}
 					} else if responseBody.Success == "False" && responseBody.Error == "0" {
@@ -1163,9 +1121,77 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 						}
 					}
 				}
+			case "B":
+				var responseBody AlgorithmRepBodyB
+				resp, err3 := client.R().SetHeader("Content-Type", "application/json").SetBody(requestBody).SetResult(&responseBody).Post(algorithm.Url)
+				if err3 != nil {
+					err = errors.New("算法请求失败。err:" + err.Error())
+					return
+				}
+				if resp.StatusCode() != 200 {
+					err = errors.New("算法请求失败。err:" + resp.Status())
+					return
+				}
+
+				if responseBody.Success == "True" && responseBody.Error == "0" {
+					//故障诊断结果和概率插入报警表
+					algorithmResultB := AlgorithmResultB{
+						DataUUID:    data.UUID,
+						AlgorithmID: algorithm.Id,
+						DataDTO:     responseBody.Data.Translate(),
+						CreateTime:  GetCurrentTime(),
+						UpdateTime:  GetCurrentTime(),
+					}
+					//插入结果表
+					if err = tx.Table("algorithm_result_b").Create(&algorithmResultB).Error; err != nil {
+						err = errors.New("故障诊断结果插入失败")
+						tx.Rollback()
+						return
+					}
+					if responseBody.Data.FaultName != "" {
+						//插入报警表
+						aler := Alert{
+							DataUUID:  data.UUID,
+							PointUUID: data.PointUUID,
+							Location:  point.Name,
+							Level:     3,
+							Strategy:  "预警算法",
+							Desc:      responseBody.Data.FaultName,
+							TimeSet:   data.TimeSet,
+							Rpm:       data.Rpm,
+							Source:    2,
+							Suggest:   "检修",
+						}
+						id := CheckTagExist(tx, point.UUID, responseBody.Data.FaultName)
+						tx.Table("data_"+turbineIdStr).Where("uuid =?", data.UUID).Update("tag", id)
+						data.Alert = append(data.Alert, aler)
+					}
+
+				} else if responseBody.Success == "False" && responseBody.Error == "0" {
+					err = errors.New("算法运行异常")
+					tx.Rollback()
+					return
+				} else {
+					switch responseBody.Error {
+					case "1":
+						err = errors.New("风场名错误")
+					case "2":
+						err = errors.New("风机号错误")
+					case "3":
+						err = errors.New("测点名错误")
+					case "4":
+						err = errors.New("数据长度错误")
+					case "5":
+						err = errors.New("采样频率错误")
+					case "6":
+						err = errors.New("风速错误 ")
+					}
+				}
 			}
 		}
+
 	}
+
 	if len(data.Alert) > 0 {
 		if err = tx.Table("alert").Create(&data.Alert).Error; err != nil {
 			tx.Rollback()
@@ -1173,7 +1199,6 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 			return
 		}
 	}
-
 	tx.Commit()
 	return
 }
@@ -1190,10 +1215,15 @@ type Algorithm struct {
 	Url        string `json:"url" gorm:"column:url; comment:预警算法url"`
 	PointUUID  string `json:"point_uuid" gorm:"point_uuid"`
 	Type       string `json:"type" gorm:"column:type;comment:算法类型"`
+	Enabled    bool   `json:"enabled" gorm:"column:enabled;comment:是否启用;default:1"`
 	BuiltTime  string `json:"builtTime" gorm:"column:built_time; comment:投运时间"`
 	CreateTime string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
 	UpdateTime string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
 	IsDel      bool   `json:"isDel" gorm:"column:is_del;default:0"`
+}
+
+func (Algorithm) TableName() string {
+	return "algorithm"
 }
 
 func (f *FTendencyString) Translate() (res FTendencyFloat) {
@@ -1217,6 +1247,10 @@ type AlgorithmResultB struct {
 	CreateTime string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
 	UpdateTime string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
 	IsDel      bool   `json:"isDel" gorm:"is_del"`
+}
+
+func (*AlgorithmResultB) TableName() string {
+	return "algorithm_result_b"
 }
 
 type AlgorithmVo struct {
@@ -1325,6 +1359,10 @@ type AlgorithmResultA struct {
 	IsDel      bool   `json:"isDel" gorm:"is_del"`
 }
 
+func (*AlgorithmResultA) TableName() string {
+	return "algorithm_result_a"
+}
+
 // 频域残差值
 type FTendencyFloat struct {
 	FLevel1 float64 `json:"F_lev1" gorm:"column:f_lev1"`
@@ -1400,19 +1438,26 @@ type Parsing struct {
 	IsDel      bool   `json:"isDel" gorm:"is_del; default:0"`
 }
 
+func (*Parsing) TableName() string {
+	return "parsing"
+}
+
 type ParsingRESP struct {
 	List  []Parsing `json:"list"`
 	Total int64     `json:"total"`
 }
 
 type FaultTag struct {
-	Id         int    `json:"id" gorm:"primarykey"`
-	Num        string `json:"num" gorm:"column:num; comment:序号"`
-	Upper      int    `json:"upper" gorm:"column:upper; comment:上级"`
-	Name       string `json:"name" gorm:"column:name; comment:故障"`
-	CreateTime string `json:"createTime" gorm:"column:create_time"`
-	UpdateTime string `json:"updateTime" gorm:"column:update_time"`
-	IsDel      bool   `json:"isDel" gorm:"is_del"`
+	Id     int    `json:"id" gorm:"primarykey"`
+	Num    int    `json:"num" gorm:"column:num; comment:序号"`
+	Type   string `json:"type" gorm:"column:type; comment:类型"`
+	Name   string `json:"name" gorm:"column:name; comment:故障"`
+	Source bool   `json:"source" gorm:"column:source; comment:来源, 0表示故障反馈, 1表示报警说明"`
+	IsDel  bool   `json:"isDel" gorm:"is_del"`
+}
+
+func (*FaultTag) TableName() string {
+	return "fault_tag"
 }
 
 type FaultTagVo struct {
@@ -1435,53 +1480,76 @@ type DataInfo struct {
 }
 
 type FaultBack struct {
-	Id          int64   `json:"id" gorm:"primarykey"`
-	FaultTime   string  `json:"faultTime" gorm:"-"`
-	TimeSet     int64   `json:"-" gorm:"column:time_set; comment:时间戳"`
-	Source      int     `json:"source" gorm:"column:source; comment:来源; default:2"`
-	MachineUUID string  `json:"machineUUID" gorm:"column:machine_uuid; comment:风机uuid"`
-	PartUUID    string  `json:"partUUID" gorm:"column:part_uuid; comment:部件uuid"`
-	Tag         int     `json:"tag" gorm:"column:tag; comment:故障标签"`
-	Progress    float64 `json:"progress" gorm:"column:progress; comment:进度"`
-	Suggest     string  `json:"suggest" gorm:"column:suggest; comment:建议"`
-	CheckTime   string  `json:"checkTime" gorm:"column:check_time; comment:检查时间"`
-	RepairTime  string  `json:"repairTime" gorm:"column:repair_time; comment:维修时间"`
-	RepairPart  string  `json:"repairPart" gorm:"column:repair_part; comment:维修部件"`
-	FileId      int     `json:"fileId" gorm:"column:file_id"`
-	File        string  `json:"file" gorm:"-"`
-	Status      int     `json:"status" gorm:"column:status; comment:状态"`
-	CreateTime  string  `json:"createTime" gorm:"column:create_time"`
-	UpdateTime  string  `json:"updateTime" gorm:"column:update_time"`
-	IsDel       bool    `json:"isDel" gorm:"is_del"`
+	Id             int64   `json:"id" gorm:"primarykey"`
+	FaultStartTime string  `json:"faultStartTime" gorm:"-"`
+	FaultEndTime   string  `json:"faultEndTime" gorm:"-"`
+	StartTimeSet   int64   `json:"-" gorm:"column:start_time_set; comment:开始时间戳"`
+	EndTimeSet     int64   `json:"-" gorm:"column:end_time_set; comment:结束时间戳"`
+	Source         int     `json:"source" gorm:"column:source; comment:来源; default:2"`
+	MachineUUID    string  `json:"machineUUID" gorm:"column:machine_uuid; comment:风机uuid"`
+	PartUUID       string  `json:"partUUID" gorm:"column:part_uuid; comment:部件uuid"`
+	PointUUID      string  `json:"pointUUID" gorm:"column:point_uuid; comment:测点uuid"`
+	Tag            string  `json:"tag" gorm:"column:tag; comment:故障标签"`
+	Progress       float64 `json:"progress" gorm:"column:progress; comment:进度"`
+	Suggest        string  `json:"suggest" gorm:"column:suggest; comment:建议"`
+	CheckTime      string  `json:"checkTime" gorm:"column:check_time; comment:检查时间"`
+	RepairTime     string  `json:"repairTime" gorm:"column:repair_time; comment:维修时间"`
+	RepairPart     string  `json:"repairPart" gorm:"column:repair_part; comment:维修部件"`
+	FileId         int     `json:"fileId" gorm:"column:file_id"`
+	File           string  `json:"file" gorm:"-"`
+	Status         int     `json:"status" gorm:"column:status; comment:状态"`
+	CreateTime     string  `json:"createTime" gorm:"column:create_time"`
+	UpdateTime     string  `json:"updateTime" gorm:"column:update_time"`
+	IsDel          bool    `json:"isDel" gorm:"is_del"`
+}
+
+type FaultBackUpdate struct {
+	Id         int64   `json:"id" gorm:"primarykey"`
+	CheckTime  string  `json:"checkTime" gorm:"column:check_time; comment:检查时间"`
+	RepairTime string  `json:"repairTime" gorm:"column:repair_time; comment:维修时间"`
+	RepairPart string  `json:"repairPart" gorm:"column:repair_part; comment:维修部件"`
+	FileId     int     `json:"fileId" gorm:"column:file_id"`
+	Progress   float64 `json:"progress" gorm:"column:progress; comment:进度"`
+	Suggest    string  `json:"suggest" gorm:"column:suggest; comment:建议"`
+	UpdateTime string  `json:"updateTime" gorm:"column:update_time"`
+}
+
+func (*FaultBack) TableName() string {
+	return "fault_back"
 }
 
 // 故障记录详情，包含报警表和故障反馈
 type FaultBackInfo struct {
-	Id          int64  `json:"id" gorm:"primarykey"`
-	FaultTime   string `json:"faultTime" gorm:"-"`
-	TimeSet     int64  `json:"-" gorm:"column:time_set"`
-	Source      int    `json:"source" gorm:"column:source"`
-	MachineUUID string `json:"machineUUID" gorm:"column:machine_uuid"`
-	PartUUID    string `json:"partUUID" gorm:"column:part_uuid"`
-	Tag         int    `json:"tag" gorm:"column:tag"`
-	Suggest     string `json:"suggest" gorm:"column:suggest; comment:建议"`
-	CheckTime   string `json:"checkTime" gorm:"column:check_time; comment:检查时间"`
-	RepairTime  string `json:"repairTime" gorm:"column:repair_time; comment:维修时间"`
-	RepairPart  string `json:"repairPart" gorm:"column:repair_part; comment:维修部件"`
-	File        string `json:"file" gorm:"column:fileName"`
-	FileDir     string `json:"fileDir" gorm:"column:fileDir"`
-	Level       int    `json:"level" gorm:"column:status; comment:状态"`
+	Id             int64   `json:"id" gorm:"primarykey"`
+	FaultTime      string  `json:"faultTime" gorm:"-"`
+	FaultStartTime string  `json:"faultStartTime" gorm:"-"`
+	FaultEndTime   string  `json:"faultEndTime" gorm:"-"`
+	TimeSet        int64   `json:"-" gorm:"column:start_time_set"`
+	EndTimeSet     int64   `json:"-" gorm:"column:end_time_set"`
+	Source         int     `json:"source" gorm:"column:source"`
+	MachineUUID    string  `json:"machineUUID" gorm:"column:machine_uuid"`
+	PartUUID       string  `json:"partUUID" gorm:"column:part_uuid"`
+	Tag            string  `json:"tag" gorm:"column:tag"`
+	Progress       float64 `json:"progress" gorm:"column:progress; comment:进度"`
+	Suggest        string  `json:"suggest" gorm:"column:suggest; comment:建议"`
+	CheckTime      string  `json:"checkTime" gorm:"column:check_time; comment:检查时间"`
+	RepairTime     string  `json:"repairTime" gorm:"column:repair_time; comment:维修时间"`
+	RepairPart     string  `json:"repairPart" gorm:"column:repair_part; comment:维修部件"`
+	File           string  `json:"file" gorm:"column:fileName"`
+	FileDir        string  `json:"fileDir" gorm:"column:fileDir"`
+	Level          int     `json:"level" gorm:"column:status; comment:状态"`
 }
 
 type FaultBackRESP struct {
-	Id          int    `json:"id" gorm:"column:id"`
-	FaultTime   string `json:"faultTime" gorm:"-"`                    // 时间
-	TimeSet     int64  `json:"-" gorm:"column:timeSet"`               // 时间戳
-	Source      int    `json:"source" gorm:"column:source"`           // 来源 0：自动报警； 1：手动报警； 2：故障反馈
-	TurbineName string `json:"turbineName" gorm:"column:turbineName"` //风机名称
-	Level       int    `json:"level" gorm:"column:level"`             // 故障等级
-	Location    string `json:"location" gorm:"column:location"`       // 位置 自动报警、手动报警展示测点名称，故障反馈展示部件名称
-	Desc        string `json:"desc" gorm:"column:desc"`               //自动报警、手动报警展示报警描述，故障反馈展示故障标签
+	Id           int    `json:"id" gorm:"column:id"`
+	FaultTime    string `json:"faultTime" gorm:"-"`                    // 时间
+	StartTimeSet int64  `json:"-" gorm:"column:timeSet"`               // 时间戳
+	EndTimeSet   int64  `json:"-" gorm:"column:endTimeSet"`            // 时间戳
+	Source       int    `json:"source" gorm:"column:source"`           // 来源 0：自动报警； 1：手动报警； 2：故障反馈
+	TurbineName  string `json:"turbineName" gorm:"column:turbineName"` //风机名称
+	Level        int    `json:"level" gorm:"column:level"`             // 故障等级
+	Location     string `json:"location" gorm:"column:location"`       // 位置 自动报警、手动报警展示测点名称，故障反馈展示部件名称
+	Desc         string `json:"desc" gorm:"column:desc"`               //自动报警、手动报警展示报警描述，故障反馈展示故障标签
 }
 
 type FaultBackVo struct {
@@ -1499,6 +1567,10 @@ type File struct {
 	IsDel      bool   `json:"isDel" gorm:"column:is_del; default:0"`
 }
 
+func (*File) TableName() string {
+	return "file"
+}
+
 // 测点趋势图
 type Models struct {
 	Id     int64  `json:"id" gorm:"primarykey"`
@@ -1509,4 +1581,8 @@ type Models struct {
 type ModelsVo struct {
 	List  []Models `json:"list"`
 	Total int64    `json:"total"`
+}
+
+func (*Models) TableName() string {
+	return "model"
 }

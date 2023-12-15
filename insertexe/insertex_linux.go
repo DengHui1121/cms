@@ -165,15 +165,19 @@ func InsertPointData(dataipport string, filename string) error {
 	defer src.Close()
 	var info string
 	var filedata []byte
+	var parsing mod.Parsing
+	if err = db.Table("parsing").Where("is_del = false").First(&parsing).Error; err != nil {
+		return err
+	}
 	filetype := strings.Split(file[len(file)-1], ".")
 	// 判断文件类型 不同文件的导入
-	info, filedata, err = mod.TypeRead(filetype[len(filetype)-1], src)
+	info, filedata, err = mod.TypeRead(filetype[len(filetype)-1], src, parsing)
 	if err != nil {
 		return err
 	}
 	// 找测点并导入数据库
 	var pdata mod.Data
-	err = pdata.DataInfoGet(db, info, filedata)
+	err = pdata.DataInfoGet(db, info, filedata, parsing)
 	if err != nil {
 		return err
 	}

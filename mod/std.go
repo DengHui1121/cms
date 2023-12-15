@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-//测点和特征值的标准文件读取
+// 测点和特征值的标准文件读取
 type Parts struct {
 	Version string
 	Part    []Part

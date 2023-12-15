@@ -24,39 +24,41 @@ import (
 // 查询对应参数写进故障树
 // 获得结构体
 // 输入数据id和测点id
-func TreeAlert(db *gorm.DB, pdata Data, ipport string) (uint8, error) {
+// TODO 2023/12/15  新增将故障说明插入到故障标签中，以便于后续的数据标签模糊查询
+func TreeAlert(db *gorm.DB, pdata Data, ipport string) (uint8, error, []int) {
+	tagIds := make([]int, 0)
 	var maxlevel uint8
 	//由测点定位到所属部件
 	ppmwfid, _, _, err := PointtoFactory(db, pdata.PointID)
 	if err != nil {
-		return 0, err
+		return 0, err, nil
 	}
 
 	var parttype string
 	var partname string //以部件名称筛选
 	err = db.Table("part").Where("id=?", ppmwfid[1]).Pluck("type", &parttype).Error
 	if err != nil {
-		return 0, err
+		return 0, err, nil
 	}
 	err = db.Table("part").Where("id=?", ppmwfid[1]).Pluck("name", &partname).Error
 	if err != nil {
-		return 0, err
+		return 0, err, nil
 	}
 
 	//故障树版本：测点 → 机器部件
 	var treeversion string
 	err = db.Table("point").Where("uuid=?", pdata.PointUUID).Pluck("tree_version", &treeversion).Error
 	if err != nil {
-		return 0, err
+		return 0, err, nil
 	}
 	if treeversion == "" {
 		err = db.Table("machine").Where("id=?", ppmwfid[2]).Pluck("tree_version", &treeversion).Error
 		if err != nil {
-			return 0, err
+			return 0, err, nil
 		}
 	}
 	if treeversion == "" {
-		return 0, nil
+		return 0, nil, nil
 	}
 	faultpath := "./faulttree/"
 	//数据索引
@@ -65,11 +67,11 @@ func TreeAlert(db *gorm.DB, pdata Data, ipport string) (uint8, error) {
 	//根据部件类型搜索故障树
 	_, err = os.Stat(faultpath + parttype)
 	if os.IsNotExist(err) {
-		return 0, err
+		return 0, err, nil
 	}
 	rd, err := ioutil.ReadDir(faultpath + parttype)
 	if err != nil {
-		return 0, err
+		return 0, err, nil
 	}
 	// fmt.Println("./faulttree/"+parttype, treeversion)
 	// fmt.Println(rd)
@@ -91,44 +93,45 @@ func TreeAlert(db *gorm.DB, pdata Data, ipport string) (uint8, error) {
 	for k := range filemap {
 		file, err := os.Open(filemap[k])
 		if err != nil {
-			return 0, err
+			return 0, err, nil
 		}
 		//对每个故障树进行获取、解析
 		basict := new(alert.BasicTree)
 		err = FileGet(file, basict)
 		if err != nil {
-			return 0, err
+			return 0, err, nil
 		}
 		if basict.Type != partname {
 			continue
 		}
 		file, err = os.Open(filemap[k])
 		if err != nil {
-			return 0, err
+			return 0, err, nil
 		}
 		t, err := TreeGet(file)
 		if err != nil {
-			return 0, err
+			return 0, err, nil
 		}
 		// * 计算和报警写入
 		err = TreeCalculate_2(t, db, pdata, index, ppmwfid, ipport)
 		if err != nil {
-			return 0, err
+			return 0, err, nil
 		}
 		// Dubug 打印
 		// jsonBytes, _ := json.MarshalIndent(t.Nodes, "", "\t")
 		// fmt.Println(string(jsonBytes))
 		//*报警插入
-		level, err := TreeAlertSet_2(t, db, pdata, filemap[k])
+		level, ids, err := TreeAlertSet_2(t, db, pdata, filemap[k])
 		if err != nil {
-			return 0, err
+			return 0, err, nil
 		}
 		if maxlevel < level {
 			maxlevel = level
 		}
+		tagIds = append(tagIds, ids...)
 
 	}
-	return maxlevel, nil
+	return maxlevel, nil, tagIds
 }
 
 // 读取故障树的toml到故障树结构体
@@ -651,14 +654,17 @@ func TreeAlertSet(t *alert.Tree, db *gorm.DB, did string, pid string, filename s
 
 	return ta.Level, nil
 }
-func TreeAlertSet_2(t *alert.Tree, db *gorm.DB, pdata Data, filename string) (uint8, error) {
+func TreeAlertSet_2(t *alert.Tree, db *gorm.DB, pdata Data, filename string) (uint8, []int, error) {
 	//故障条目
 	var ta Alert
+	tagIds := make([]int, 0)
 	ta.UUID = pdata.UUID
 	ta.DataID = pdata.ID
 	ta.DataUUID = pdata.UUID
 	ta.PointID = pdata.PointID
 	ta.PointUUID = pdata.PointUUID
+	var partType string
+	db.Table("point").Select("part.type_en").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", ta.PointUUID).Find(&partType)
 	ta.TimeSet = t.DataTime
 	//ta.location 部件
 	ta.Location = t.Type
@@ -666,7 +672,7 @@ func TreeAlertSet_2(t *alert.Tree, db *gorm.DB, pdata Data, filename string) (ui
 	if !t.NodesMap[0][0].Result {
 		//没有故障
 		ta.Level = 1
-		return 1, nil
+		return 1, nil, nil
 	} else {
 		//ta.level 默认故障树为报警 3级
 		ta.Level = 3
@@ -684,19 +690,21 @@ func TreeAlertSet_2(t *alert.Tree, db *gorm.DB, pdata Data, filename string) (ui
 			for k := range t.Stages {
 				if t.Stages[k].Result {
 					ta.Desc = t.Stages[k].Name + t.Stages[k].Desc
+					tagIds = append(tagIds, CheckTagExist(db, ta.PointUUID, ta.Desc))
 					ta.Suggest = t.Stages[k].Suggest
 					ta.TreeAlert.TreeName = t.Stages[k].Name
 				}
 			}
 		} else {
 			ta.Desc = t.Name + t.Desc
+			tagIds = append(tagIds, CheckTagExist(db, ta.PointUUID, ta.Desc))
 			ta.Suggest = t.Suggest
 			ta.TreeAlert.TreeName = t.Name
 		}
 		ta.TreeAlert.FileTreeName = filename
 		tjson, err := json.Marshal(t)
 		if err != nil {
-			return 1, err
+			return 1, nil, err
 		}
 		ta.TreeAlert.TreeJson = tjson
 
@@ -714,10 +722,10 @@ func TreeAlertSet_2(t *alert.Tree, db *gorm.DB, pdata Data, filename string) (ui
 			return nil
 		})
 		if err != nil {
-			return 1, err
+			return 1, nil, err
 		}
 	}
-	return ta.Level, nil
+	return ta.Level, tagIds, nil
 }
 func TreeAlertDetail(db *gorm.DB, id string) (t alert.TreeAlert, err error) {
 	var a Alert

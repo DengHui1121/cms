@@ -29,8 +29,10 @@ var ResultIndex map[string]string = map[string]string{
 	"平均赋值": "indexeven",
 }
 
-func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (level uint, err error) {
+// TODO 2023/12/14 新增将故障说明插入到故障标签中，以便于后续的数据标签查询、以及删除
+func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (level uint, ids []int, err error) {
 	var bband []alert.Band
+	tagIds := make([]int, 0)
 	if bband, err = AlertSearch(db, ppmwcid, pdata.PointUUID, pdata.Measuredefine); err != nil {
 		return
 	}
@@ -57,6 +59,7 @@ func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (leve
 							a.Type = "频带幅值"
 							a.Level = v.Floor.Level
 							a.Desc = v.Floor.Desc
+							tagIds = append(tagIds, CheckTagExist(tx, pdata.PointUUID, a.Desc))
 							a.Suggest = v.Floor.Suggest
 							b.Limit = v.FloorStd
 							if brms >= v.Upper.Std {
@@ -97,6 +100,7 @@ func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (leve
 							a.Type = "频带幅值"
 							a.Level = v.Floor.Level
 							a.Desc = v.Floor.Desc
+							tagIds = append(tagIds, CheckTagExist(tx, pdata.PointUUID, a.Desc))
 							a.Suggest = v.Floor.Suggest
 							b.Limit = v.FloorStd
 							if brms >= v.Upper.Std {
@@ -128,9 +132,9 @@ func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (leve
 		return nil
 	})
 	if err != nil {
-		return maxlevel, err
+		return maxlevel, nil, err
 	}
-	return maxlevel, nil
+	return maxlevel, tagIds, nil
 }
 
 // TODO 目前至更新了测点的status。再根据测点最大状态值更新风机和风场的状态

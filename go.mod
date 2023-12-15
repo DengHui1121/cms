@@ -6,6 +6,7 @@ require (
 	baliance.com/gooxml v1.0.1
 	github.com/BurntSushi/toml v0.4.1
 	github.com/blend/go-sdk v1.1.1 // indirect
+	github.com/fatih/color v1.16.0
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/go-resty/resty/v2 v2.10.0
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
@@ -16,7 +17,6 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/labstack/echo/v4 v4.6.3
-	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mozillazg/go-pinyin v0.19.0
 	github.com/robfig/cron/v3 v3.0.0
 	github.com/shirou/gopsutil v3.21.11+incompatible

@@ -1,4 +1,4 @@
-//^ 日志相关
+// ^ 日志相关
 package mod
 
 import (

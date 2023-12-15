@@ -39,7 +39,6 @@ func init() {
 	}
 
 	flag.Parse()
-
 	//检查数据库
 	_, err = toml.DecodeFile(*config, &dbconfig)
 	if err != nil {
@@ -96,13 +95,13 @@ func Start() {
 		}
 	})
 
-	//资源目录
+	//静态资源目录，包含前端代码
 	e.Static("/dist", "./dist/")
-
-	e.Static("/js", "./dist/js")
-	e.Static("/css", "./dist/css")
-	e.Static("/img", "./dist/img")
-	e.Static("/media", "./dist/media")
+	e.Static("/js", "./dist/js/")
+	e.Static("/css", "./dist/css/")
+	e.Static("/img", "./dist/img/")
+	e.Static("/media", "./dist/media/")
+	e.Static("/fanModel", "./dist/fanModel/")
 	e.Static("/favicon.ico", "./dist/favicon.ico")
 	e.Static("/ipConfig.js", "./dist/ipConfig.js")
 	e.Static("/upload", "./upload/")
@@ -163,6 +162,9 @@ func Start() {
 		cmsbasic.DELETE("upload/:id", DeleteFileHandler) //删除文件
 
 		cmsbasic.GET("models", GetModelsHandler)
+
+		//数据标签修改
+		cmsbasic.PUT("data/tag/:machineId", UpdateDataLabel)
 	}
 
 	//* 导入导出相关
@@ -200,7 +202,7 @@ func Start() {
 		stastics.GET("windfarm/faultFeedBack/:id", GetFarmFaultFeedBackHandler)          //获取风场故障反馈
 		stastics.POST("windfarm/faultFeedBack", AddFaultFeedbackHandler)                 //新增故障反馈
 		stastics.DELETE("windfarm/faultFeedBack/:id", DeleteFaultFeedbackHandler)        //删除故障反馈
-		stastics.POST("windfarm/faultFeedBack/:id", UpdateFaultFeedbackHandler)          //更新故障反馈
+		stastics.PUT("windfarm/faultFeedBack", UpdateFaultFeedbackHandler)               //更新故障反馈
 		stastics.GET("windfarm/faultFeedBack/info/:id", GetFarmFaultFeedBackByIdHandler) //根据id获取风场故障反馈
 		//----------结束----------//
 
@@ -214,7 +216,7 @@ func Start() {
 		user.PUT(":type", UserOption)    //修改
 		user.DELETE(":type", UserOption) //删除
 	}
-
+	mainlog.Info("服务启动成功，端口：" + *port)
 	//端口
 	e.Start(":" + *port)
 }

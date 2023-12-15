@@ -144,6 +144,7 @@ func ReadCSVfile(file multipart.File) (info string, data []byte, err error) {
 func ReadTXTfile(fileName string, file multipart.File, parsing Parsing) (info string, data []byte, err error) {
 	reader := bufio.NewReader(file)
 
+	// type 为 0 表示首行解析， 1 表示文件名解析
 	switch parsing.Type {
 	case 0:
 		info, err = reader.ReadString('\n')
@@ -184,17 +185,29 @@ func ReadTXTfile(fileName string, file multipart.File, parsing Parsing) (info st
 	return info, buffer.Bytes(), err
 }
 
-// * 解析数据描述信息，将数据信息和数据存入数据库
-// * 数据格式：大唐江西太阳山风电场（0风场名）_风机#01（1风机名）_齿轮箱低速轴（2#测点）_径向（3#测点方向）_32.768K（4#数据长度）_25600HZ（5#采样频率）_Timewave（6#数据类型）_加速度（7#测量参数）_1RPM（#测量转速）_20220101201122（#测量时间年月日时分秒）
+// eg: 约定字段的索引：风场名称(0) 风机名称(1)  测点名称(2) 数据长度(3) 采样频率(4) 数据类型(5) 测量参数(6) 转速(7) 时间(8) 其他信息(9)
+// eg: 实际info：大唐江西太阳山风电场（0）_风机#01（1）_齿轮箱低速轴（2#测点）_径向（9）_32.768K（3）_25600HZ（4）_Timewave（5）_加速度（6）_1RPM（7）_20220101201122（8）
+// eg: 定义info：0_1_2_9_3_4_5_6_7_8
+// @Title DataInfoGet
+// @Description 解析数据描述信息，将数据信息和数据存入数据库
+// @Author MuXi 2023-12-15 15:50:30
+// @Param db
+// @Param info 文件info信息
+// @Param filedata 文件数据
+// @Param parsing 解析方式
+// @Return error
 func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing Parsing) error {
 	var err error
 	var dataInfo DataInfo
 	fmt.Println(parsing.Separator)
+	// 实际info为数据格式，在文件中读取。
 	str := strings.Split(info, parsing.Separator)
 	if len(str) != parsing.Length {
 		err = errors.New("文件解析格式出现错误")
 		return err
 	}
+	// 分割解析方式中的定义info
+	// 遍历定义info，当前字符的下标为key，value为约定好的字段编号，例如：下表：0， value：3则表示实际info中，下标为0的字段对应的测点
 	infoIndexs := strings.Split(parsing.DataInfo, parsing.Separator)
 	for key, value := range infoIndexs {
 		switch value {
@@ -235,6 +248,7 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing P
 		Where("machine.name = ?", mname)
 
 	var goalpoint Point
+	// 其它信息， 可能为空，需要动态拼接查询条件
 	if pdirection == "" {
 		err = midDB.Where("point.name = ?", ppname).First(&goalpoint).Error
 	} else {
@@ -244,6 +258,8 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing P
 		err = errors.New("point missing." + err.Error())
 		return err
 	}
+
+	// 根据参数获取数据所需相关参数，填充。
 	var pointid uint = goalpoint.ID
 	dd.PointID = goalpoint.ID
 	//uuid
@@ -256,6 +272,7 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing P
 	dd.Filepath = info
 	dd.Length = strings.ToUpper(dataInfo.Length)
 	// freq, err := strconv.ParseFloat(strings.Trim(strings.ToUpper(str[5]), "HZ"), 32)
+	// 将hz 大写后移除HZ，在进行分割，保留采样频率整数
 	freq, err := strconv.Atoi(strings.Split(strings.Trim(strings.ToUpper(dataInfo.SampleRate), "HZ"), ".")[0])
 	if err != nil {
 		return errors.New("频率格式错误" + err.Error())
@@ -271,7 +288,6 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing P
 	if len([]rune(dataInfo.Time)) != 14 {
 		return errors.New("时间格式错误，应包含年月日时分秒14位数。")
 	}
-
 	ddtime, err := time.ParseInLocation("20060102150405", dataInfo.Time, time.Local)
 	if err != nil {
 		return err
@@ -316,6 +332,8 @@ func (dbconfig *GormConfig) DataAnalysis(path string, arg ...string) ([]string, 
 }
 
 // 数据服务获取时频分析数据并存到数据库
+// 将上传的数据提交给数据分析服务，返回特征值，以及分析结果
+// 分析结果存入数据库，将特征值更新在数据表中。
 func (data *Data) DataAnalysis_2(db *gorm.DB, ipport string, fid string) (err error) {
 	ourl := "http://" + ipport + "/api/v1/data/trans/"
 	var originy []float32 = make([]float32, len(data.Wave.DataFloat)/4)
