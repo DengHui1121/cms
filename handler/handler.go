@@ -206,6 +206,7 @@ func StdFileUpload(c echo.Context) error {
 	return err
 }
 
+// 标准文件更新
 func StdUpdate(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -291,15 +292,14 @@ func FindTree(c echo.Context) error {
 			err = db.Table("factory").Omit("created_at", "updated_at").Find(&ff).Error
 			f = ff
 		}
-
 	case "windFields":
 		var ff mod.Factory
 		err = db.Table("factory").Omit("created_at", "updated_at").Preload(clause.Associations).
 			Find(&ff, id).Error
 		f = ff.Windfarms
 	case "windField":
-		var ff mod.Windfarm
-		err = db.Table("windfarm").Omit("created_at", "updated_at").Preload("Machines").
+		var ff mod.Windfarm2
+		err = db.Table("windfarm").Select("windfarm.*, factory.name factoryName, factory.id factoryId").Omit("created_at", "updated_at").Joins("LEFT JOIN factory ON windfarm.factory_uuid = factory.uuid").Preload("Machines").
 			Last(&ff, id).Error
 		err = db.Table("machine").Select("SUM(machine.capacity) as installed_capacity").Where("machine.windfarm_uuid =?", ff.UUID).Find(&ff.InstalledCapacity).Error
 		err = db.Table("machine").Select("COUNT(machine.id)").Where("machine.windfarm_uuid =?", ff.UUID).Find(&ff.MachineCounts).Error
@@ -323,7 +323,7 @@ func FindTree(c echo.Context) error {
 			Latitudestr = fmt.Sprint(ff.Latitude)
 		}
 		t := struct {
-			*mod.Windfarm
+			*mod.Windfarm2
 			Longitudestr string `json:"longitude"`
 			Latitudestr  string `json:"latitude"`
 		}{
@@ -418,7 +418,7 @@ func FindTree(c echo.Context) error {
 			break
 		}
 		m.PointName = pmwname[0]
-		db.Table("part").Where("id=?", ppmwfid[1]).Pluck("type", &m.PartName)
+		db.Table("part").Where("id = ?", ppmwfid[1]).Pluck("type", &m.PartName)
 		m.MachineName = pmwname[2]
 		m.WindfarmName = pmwname[3]
 		m.FactoryName = pmwname[4]
@@ -485,7 +485,7 @@ func FindAlert(c echo.Context) error {
 
 		sub := db.Table("alert").Group(ai.SearchBox).Select(ai.SearchBox)
 		if ai.SearchBox == "type" {
-			sub.Not("type =? OR type = ?", "故障树", "频带幅值").Scan(&temp)
+			sub.Not("type = ? OR type = ?", "故障树", "频带幅值").Scan(&temp)
 			temp = append(temp, "故障树", "频带幅值")
 		} else {
 			sub.Scan(&temp)
@@ -518,6 +518,7 @@ func FindAlert(c echo.Context) error {
 	ErrNil(c, returnData, f, "成功查询")
 	return nil
 }
+
 func PostDataLimit(c echo.Context) error {
 	var err error
 	var returnData mod.ReturnData
@@ -537,15 +538,18 @@ func FindInfo(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
 	i := c.Param("type")
+	var midDB *gorm.DB
 	switch i {
 	case "company":
 		dst = new([]mod.Factory)
 		table = "factory"
+		midDB = db.Table(table)
 	case "windFields":
-		dst = new([]mod.Windfarm)
+		dst = new([]mod.Windfarm2)
 		table = "windfarm"
+		midDB = db.Table(table).Joins("left join factory on factory.uuid = windfarm.factory_uuid").Select("windfarm.*, factory.id factoryId, factory.name factoryName")
 	}
-	err = db.Table(table).Omit("created_at", "updated_at").Preload(clause.Associations).Find(dst).Error
+	err = midDB.Omit("created_at", "updated_at").Preload(clause.Associations).Find(dst).Error
 	if err != nil {
 		ErrCheck(c, returnData, err, c.Request().URL.String()+" 查找信息失败")
 		return err
@@ -635,7 +639,7 @@ func UpdateAlert(c echo.Context) error {
 	var returnData mod.ReturnData
 	var m mod.Alert
 	c.Bind(&m)
-	err = db.Table("alert").Where("id=?", m.ID).
+	err = db.Table("alert").Where("id = ?", m.ID).
 		Select("level", "strategy", "desc", "source", "suggest", "handle").Clauses(clause.Locking{Strength: "UPDATE"}).
 		Updates(m).Error
 	if err != nil {
@@ -645,6 +649,7 @@ func UpdateAlert(c echo.Context) error {
 	return err
 }
 
+// 新建公司 风场 风机
 func InsertInfo(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
@@ -669,8 +674,8 @@ func InsertInfo(c echo.Context) error {
 	case "windField":
 		var m mod.Windfarm
 		mod.MaptoStruct(mm, &m)
-		fmt.Println(mm)
-		fmt.Println(m)
+		//fmt.Println(mm)
+		//fmt.Println(m)
 		var parent mod.Factory
 		db.Table("factory").Where("id = ? ", m.FactoryID).Select("uuid").First(&parent)
 		m.FactoryUUID = parent.UUID
@@ -783,7 +788,7 @@ func InsertAlert(c echo.Context) error {
 	}
 	db.Table("part").Where("id=?", ppmwfid[1]).Pluck("name", &m.Location)
 	var tempdata mod.Data
-	db.Table("data_"+ppmwfid[2]).Where("id=?", m.DataID).Select("uuid", "rpm", "time_set", "point_uuid").
+	db.Table("data_"+ppmwfid[2]).Where("id = ?", m.DataID).Select("uuid", "rpm", "time_set", "point_uuid").
 		First(&tempdata)
 	m.DataUUID = tempdata.UUID
 	m.Rpm = tempdata.Rpm
@@ -887,7 +892,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 			ErrCheck(c, returnData, err, "未找到测点")
 			return err
 		}
-		// 检查数据是否存在
+		// 检查数据是否存在，将创建时间和修改时间进行填充
 		err = mod.CheckData(db, &pdata)
 		if err != nil {
 			ErrCheck(c, returnData, err, "数据表查询错误")
@@ -914,7 +919,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 			ErrCheck(c, returnData, err, "数据导入失败")
 			return err
 		}
-		// TODO 数据导入完成后，开始调用预警算法
+		// FIXME 数据导入完成后，开始调用预警算法, 产生报警需要更新风机月报警次数和日报警
 		pid := strconv.FormatUint(uint64(pdata.PointID), 10)
 		ppmwcid, _, _, err := mod.PointtoFactory(db, pid)
 		if err != nil {
@@ -1072,6 +1077,13 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 								tx.Rollback()
 								err = errors.New("报警插入失败")
 							}
+
+							// TODO 报警插入后更新日报警和月报警
+							if err = mod.UpdateReportAfterAlert(tx, aler); err != nil {
+								tx.Rollback()
+								err = errors.New("日报警和月报警更新失败")
+								return err
+							}
 							// 将id更新到pdata.tag中
 							if err = tx.Table("data_"+fid).Where("uuid =?", pdata.UUID).Update("tag", id).Error; err != nil {
 								tx.Rollback()
@@ -1108,6 +1120,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 	}
 }
 
+// 覆盖数据上传接口
 func OverMPointData(ipport string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var err error
@@ -2618,7 +2631,7 @@ func UpdateAlgorithmHandler(c echo.Context) (err error) {
 		return err
 	}
 	algorithm.UpdateTime = mod.GetCurrentTime()
-	if err = db.Table("algorithm").Where("id = ?", algorithm.Id).Updates(&algorithm).Error; err != nil {
+	if err = db.Table("algorithm").Select("enabled").Where("id = ?", algorithm.Id).Save(&algorithm).Error; err != nil {
 		mainlog.Error("更新算法失败 %v", err)
 		ErrCheck(c, returnData, err, "更新算法失败")
 		return err
@@ -2874,7 +2887,6 @@ func AddFaultTagHandler(c echo.Context) (err error) {
 		ErrCheck(c, returnData, err, "参数错误")
 		return err
 	}
-
 	if err = db.Table("fault_tag").Create(&faultTag).Error; err != nil {
 		mainlog.Error("新增故障标签失败 %v", err)
 		ErrCheck(c, returnData, err, "新增故障标签失败")
@@ -3020,6 +3032,7 @@ func AddFaultFeedbackHandler(c echo.Context) (err error) {
 			mainlog.Error("查询指定测点数据失败: %v", err)
 			ErrCheck(c, returnData, err, "查询指定测点数据失败")
 		}
+		// 开始更新测点数据
 		for _, data := range datas {
 			var tag string
 			// 如果该data的tag为空, 直接赋值
@@ -3042,7 +3055,12 @@ func AddFaultFeedbackHandler(c echo.Context) (err error) {
 	return
 }
 
-// 追加标签，去除重复标签
+// @Title appendTags
+// @Description  自定义函数，用来追加数据标签，去除重复标签
+// @Author DengHui 2023-12-25 15:06:52
+// @Param existingTag
+// @Param newTag
+// @Return string
 func appendTags(existingTag, newTag string) string {
 	if existingTag == "" {
 		return newTag
@@ -3435,23 +3453,24 @@ func GetModelsHandler(c echo.Context) (err error) {
 // 更新数据标签不做追加，直接赋值
 func UpdateDataLabel(c echo.Context) (err error) {
 	var returnData mod.ReturnData
+	type Condition struct {
+		Tag    string `json:"tag"`
+		DataId int    `json:"dataId"`
+	}
 	machineIdStr := c.Param("machineId")
-	dataIdStr := c.QueryParam("dataId")
-
-	tag := c.QueryParam("tag")
-	if dataIdStr == "" {
+	var condition Condition
+	if err = c.Bind(&condition); err != nil {
 		mainlog.Error("参数错误")
 		ErrCheck(c, returnData, err, "参数错误")
 		return
 	}
-	dataId, err := strconv.Atoi(dataIdStr)
-	if err != nil {
-		mainlog.Error("id string转int失败 %v", err)
-		ErrCheck(c, returnData, err, "id string转int失败")
+	if condition.DataId == 0 {
+		mainlog.Error("参数错误")
+		err = errors.New("数据id为空")
+		ErrCheck(c, returnData, err, "参数错误")
 		return
 	}
-
-	if err = db.Table("data_"+machineIdStr).Where("id = ?", dataId).Update("tag", tag).Error; err != nil {
+	if err = db.Table("data_"+machineIdStr).Where("id = ?", condition.DataId).Update("tag", condition.Tag).Error; err != nil {
 		mainlog.Error("更新数据标签失败 %v", err)
 		ErrCheck(c, returnData, err, "更新数据标签失败")
 		return

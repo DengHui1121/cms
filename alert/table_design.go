@@ -19,7 +19,7 @@ type Model struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-//频带报警的标准表 写到数据库
+// 频带报警的标准表 写到数据库
 type Band_2 struct {
 	Model     `gorm:"embedded" json:"-"`
 	ID        uint   `json:"-"`
@@ -37,6 +37,7 @@ type Band_2 struct {
 	Floor    BandStage `gorm:"embedded;embeddedPrefix:floor_"`
 	Upper    BandStage `gorm:"embedded;embeddedPrefix:upper_"`
 }
+
 type Band struct {
 	Model     `gorm:"embedded" json:"-"`
 	ID        uint   `json:"id,string"`
@@ -84,7 +85,7 @@ func (u *Band) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
-//报警频带报警 详细信息 返回给前端
+// 报警频带报警 详细信息 返回给前端
 type BandAlert struct {
 	ID         uint    `json:"id" gorm:"primarykey" ` //对应alert表的id
 	AlertID    uint    `json:"alert_id,string" gorm:"-"`
@@ -104,7 +105,7 @@ func (u *BandAlert) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
-//故障树信息\
+// 故障树信息\
 type BasicTree struct {
 	Version string `json:"-"`
 	Name    string `json:"-"`
@@ -162,7 +163,7 @@ type Calculate struct {
 	UpperGoal string
 }
 
-//报警故障树 写到数据库
+// 报警故障树 写到数据库
 type TreeAlert struct {
 	ID           uint   `json:"id,string" gorm:"primarykey"`
 	AlertID      uint   `json:"alert_id,string" gorm:"-"`
@@ -183,7 +184,7 @@ func (u *TreeAlert) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
-//人工报警详细内容
+// 人工报警详细内容
 type ManualAlert struct {
 	ID        uint   `json:"id,string" gorm:"primarykey"`
 	AlertID   uint   `json:"alert_id,string" gorm:"-"`

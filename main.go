@@ -213,6 +213,8 @@ func (mp *ModProcess) Run() (err error) {
 			fmt.Println(string(line))
 		}
 	}()
+	//
+
 	err = mp.cmd.Start()
 	if err != nil {
 		mainlog.Error("启动%s模块失败 Error:%s", mp.Name, err)
