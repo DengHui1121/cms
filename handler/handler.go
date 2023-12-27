@@ -2401,37 +2401,39 @@ func AlertConfirm(c echo.Context) error {
 }
 
 // FactoryDataUpdateHandler 厂家数据上传接口
-func FactoryDataUpdateHandler(c echo.Context) (err error) {
-	var returnData mod.ReturnData
-	var factoryData mod.FactoryUpdateData
+func FactoryDataUpdateHandler(ipport string) echo.HandlerFunc {
+	return func(c echo.Context) (err error) {
+		var returnData mod.ReturnData
+		var factoryData mod.UpdateFactoryData
 
-	farmIdStr := c.Param("farmid")
-	turbineIdStr := c.Param("turbineId")
-	if err = c.Bind(&factoryData); err != nil {
-		ErrCheck(c, returnData, err, "数据解析失败")
-		return err
-	}
+		farmIdStr := c.Param("farmid")
+		turbineIdStr := c.Param("turbineId")
+		if err = c.Bind(&factoryData); err != nil {
+			ErrCheck(c, returnData, err, "数据解析失败")
+			return err
+		}
 
-	if farmIdStr == "" {
-		mainlog.Error("风场id转换int失败: %v", err)
-		ErrCheck(c, returnData, err, "风场id转换int失败")
-		return err
-	}
-	if farmIdStr == "" {
-		mainlog.Error("风机id转换int失败: %v", err)
-		ErrCheck(c, returnData, err, "风机id转换int失败")
-		return err
-	}
+		if farmIdStr == "" {
+			mainlog.Error("风场id转换int失败: %v", err)
+			ErrCheck(c, returnData, err, "风场id转换int失败")
+			return err
+		}
+		if turbineIdStr == "" {
+			mainlog.Error("风机id转换int失败: %v", err)
+			ErrCheck(c, returnData, err, "风机id转换int失败")
+			return err
+		}
 
-	var data mod.Data
-	if data, err = factoryData.InsertFactoryData(db, farmIdStr, turbineIdStr); err != nil {
-		mainlog.Error("插入数据发生异常: %v", err)
-		ErrCheck(c, returnData, err, "数据库插入数据发行异常")
-		return err
-	}
+		var data mod.Data
+		if data, err = factoryData.InsertFactoryData(db, farmIdStr, turbineIdStr, ipport); err != nil {
+			mainlog.Error("插入数据发生异常: %v", err)
+			ErrCheck(c, returnData, err, "数据库插入数据发行异常")
+			return err
+		}
 
-	ErrNil(c, returnData, data, "成功")
-	return nil
+		ErrNil(c, returnData, data, "成功")
+		return nil
+	}
 }
 
 // 获取风机或风场的算法预警统计
@@ -3476,5 +3478,13 @@ func UpdateDataLabel(c echo.Context) (err error) {
 		return
 	}
 	ErrNil(c, returnData, nil, "更新数据标签成功")
+	return
+}
+
+// 新增更具报告模板生成报告
+func OutputDocument(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+
+	ErrNil(c, returnData, nil, "报告生成成功")
 	return
 }

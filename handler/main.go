@@ -17,7 +17,7 @@ import (
 var (
 	config  = flag.String("dbconfig", "./GormConfig.toml", "数据库连接配置")
 	port    = flag.String("p", "3000", "服务端口")
-	dataurl = flag.String("dataurl", "localhost:3005", "数据服务占用端口")
+	dataurl = flag.String("dataurl", "localhost:3006", "数据服务占用端口")
 	DB      = db
 )
 
@@ -106,7 +106,7 @@ func Start() {
 	e.Static("/ipConfig.js", "./dist/ipConfig.js")
 	e.Static("/upload", "./upload/")
 
-	e.POST("/ais/openapi/v1/:farmid/states/:turbineId", FactoryDataUpdateHandler) //厂家检测数据上传接口
+	e.POST("/ais/openapi/v1/:farmid/states/:turbineId", FactoryDataUpdateHandler(*dataurl)) //厂家检测数据上传接口
 
 	cmsbasic := e.Group("api/v1/")
 	{
@@ -170,9 +170,10 @@ func Start() {
 	//* 导入导出相关
 	outputhandle := e.Group("api/v1/output/")
 	{
-		outputhandle.POST("xlsx", OutputXlsx)  //导出xlsx文件
-		outputhandle.POST("doc", OutputDocx)   //导出docx文件
-		outputhandle.GET("dl", DownloadOutput) //上传文件至前端下载
+		outputhandle.POST("xlsx", OutputXlsx)        //导出xlsx文件
+		outputhandle.POST("doc", OutputDocx)         //导出docx文件
+		outputhandle.GET("dl", DownloadOutput)       //上传文件至前端下载
+		outputhandle.GET("document", OutputDocument) //导出word文档
 	}
 
 	//*数据库相关

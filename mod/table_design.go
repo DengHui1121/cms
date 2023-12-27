@@ -1,7 +1,6 @@
 package mod
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/go-resty/resty/v2"
@@ -807,59 +806,66 @@ type Wave_Update struct {
 }
 
 type WorkCondition struct {
-	WindSp1s    string `json:"WindSp1S"`    //风速1s
-	ActivePower string `json:"ActivePower"` //功率
-	RotorSpeed  string `json:"RotorSpeed"`  //电机转速
-	PitchAngle  string `json:"PitchAngle"`  //桨叶角度
-	YawState    string `json:"YawState"`    //偏航
+	WindSp1s    float32 `json:"WindSp1S"`    //风速1s
+	ActivePower float32 `json:"ActivePower"` //功率
+	RotorSpeed  float32 `json:"RotorSpeed"`  //电机转速
+	PitchAngle  float32 `json:"PitchAngle"`  //桨叶角度
+	YawState    float32 `json:"YawState"`    //偏航
 }
 type SubdivisionAlarm struct {
 }
 type Alarm struct {
 	ComponentName        string             `json:"ComponentName"`        //ComponentName 部件名称
-	AlarmType            int64              `json:"AlarmType"`            //AlarmType 报警类型
+	AlarmType            string             `json:"AlarmType"`            //AlarmType 报警类型
 	AlarmUpdateTime      string             `json:"AlarmUpdateTime"`      //AlarmUpdateTime 报警时间
 	SubdivisionAlarmList []SubdivisionAlarm `json:"SubdivisionAlarmList"` //细分故障列表
 	AlarmDegree          int64              `json:"AlarmDegree"`          //AlarmDegree 故障报警程度
 }
 
 type ChannelContent struct {
-	ECSChannel         int     `json:"ECSChannel"`         //通道编号
-	WaveLength         int     `json:"WaveLength"`         //波形长度
-	SignalType         int     `json:"SignalType"`         //信号类型
-	WaveType           int     `json:"WaveType"`           //波形类型
-	UpperFreq          float32 `json:"UpperFreq"`          //波形上限频率
-	LowerFreq          float32 `json:"LowerFreq"`          //波形下限频率
+	ChannelAlarmType   int     `json:"ChannelAlarmType"`   //通道报警类型
 	ComponentName      string  `json:"ComponentName"`      //检测部件简称
 	LocationSection    string  `json:"LocationSection"`    //检测部件测点位置
-	SampleRate         float32 `json:"SampleRate"`         //采样率
-	WaveDefDescription int     `json:"WaveDefDescription"` //波形定义描述
+	WaveLength         string  `json:"WaveLength"`         //波形长度
+	WaveType           string  `json:"WaveType"`           //波形类型
+	Rpm                float32 `json:"RPM"`                // 转速
+	WaveDefDescription string  `json:"WaveDefDescription"` //波形定义描述
+	SampleRate         string  `json:"SampleRate"`         //采样率
 	AcquisitionTime    string  `json:"AcquisitionTime"`    //波形采样时间
-	WaveData           string  `json:"WaveData"`           //波形数据
-	ChannelAlarmType   string  `json:"ChannelAlarmType"`   //通道报警类型
+	WaveData           string  `json:"WaveData"`           //时域波形数据
+	SpectrumData       string  `json:"Spectrum"`           //频域波形数据
 	Eigenvalue         Result  `json:"Eigenvalue"`         //通道特征值
+
+	// 未使用字段, 暂时保留
+	ECSChannel int     `json:"ECSChannel"` //通道编号
+	SignalType int     `json:"SignalType"` //信号类型
+	UpperFreq  float32 `json:"UpperFreq"`  //波形上限频率
+	LowerFreq  float32 `json:"LowerFreq"`  //波形下限频率
 }
 
 type CMSData struct {
-	DeviceId           string           `json:"DeviceID"`           //设备编号，编号确定后不能更改
-	DeviceType         string           `json:"DeviceType"`         //设备名称，可以修改
-	DeviceIP           string           `json:"DeviceIP"`           //设备通信地址/IP地址
-	DeviceStatus       string           `json:"DeviceStatus"`       //设备状态
-	StopLevel          int64            `json:"StopLevel"`          //CMS设备给的报警等级
-	AlarmInfo          []Alarm          `json:"AlarmInfo"`          //报警信息
-	ChannelContentList []ChannelContent `json:"ChannelContentList"` //通道信息
+	DeviceId           string         `json:"DeviceID"`           //设备编号，编号确定后不能更改
+	DeviceType         string         `json:"DeviceType"`         //设备名称，可以修改
+	DeviceIP           string         `json:"DeviceIP"`           //设备通信地址/IP地址
+	DeviceStatus       string         `json:"DeviceStatus"`       //设备状态
+	StopLevel          int64          `json:"StopLevel,string"`   //CMS设备给的报警等级
+	AlarmInfo          []Alarm        `json:"AlarmInfo"`          //报警信息
+	ChannelContentList ChannelContent `json:"ChannelContentList"` //通道信息
 }
 type FactoryUpdateData struct {
 	TurbineName   string                 `json:"TurbineName"` //风机名,按风机名称排序
-	StopLevel     string                 `json:"StopLevel"`   //预警停机等级
+	StopLevel     int                    `json:"StopLevel"`   //预警停机等级
 	DeviceTime    string                 `json:"DeviceTime"`  //系统时间/设备时间
 	WorkCondition `json:"WorkCondition"` //运行工况
-	CMSData       `json:"CMSData"`       //CMS数据
+	CMSDatas      []CMSData              `json:"CMSData"` //CMS数据
 }
-
-var faultMap = map[int]string{
-	0: "有限制门限报警",
-	1: "峰值门限报警",
+type UpdateFactoryData struct {
+	FarmId            int    `json:"farmId"`
+	MachineId         int    `json:"turbineId"`
+	WindfarmName      string `json:"farm_name"`
+	MachineName       string `json:"turbine_name"`
+	Location          string `json:"location"`
+	FactoryUpdateData `json:"body"`
 }
 
 // @Title InsertFactoryData
@@ -872,187 +878,135 @@ var faultMap = map[int]string{
 // @Return err
 // FIXME 2023/12/15 需要将数据写入数据库在算法调用前完成， 算法调用产生异常，直接抛出
 // FIXME 2023/12/15 如果预警算法成功，新增报警记录时 检查tag
-func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, turbineIdStr string) (data Data, err error) {
-	farmId, err := strconv.Atoi(farmIdStr)
-	if err != nil {
-		err = errors.New("farmId, 转换错误")
-		return
-	}
-
-	turbineId, err := strconv.Atoi(turbineIdStr)
-	if err != nil {
-		err = errors.New("turbineId, 转换错误")
-		return
-	}
+func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, turbineIdStr, ipport string) (data Data, err error) {
 
 	var farm Windfarm
 	var machine Machine
-	if err = db.Table("windfarm").Where("id = ? ", farmId).Find(&farm).Error; err != nil {
+	if err = db.Table("windfarm").Where("name = ? ", updateData.WindfarmName).Find(&farm).Error; err != nil {
 		err = errors.New("查询风场信息错误")
 		return
 	}
 
-	if err = db.Table("machine").Where("id = ? ", turbineId).Find(&machine).Error; err != nil {
+	if err = db.Table("machine").Joins("left join windfarm on windfarm.uuid = machine.windfarm_uuid").
+		Where("machine.name = ? AND windfarm.name = ? ", updateData.TurbineName, updateData.WindfarmName).Find(&machine).Error; err != nil {
 		err = errors.New("查询风机信息错误")
 		return
 	}
 
 	tx := db.Begin()
-	//处理数据表单
-	power, _ := strconv.ParseFloat(factoryData.ActivePower, 32)
-	windSpeed, _ := strconv.ParseFloat(factoryData.WindSp1s, 32)
-	yew, _ := strconv.ParseFloat(factoryData.YawState, 32)
-	rotorSpeed, _ := strconv.ParseFloat(factoryData.RotorSpeed, 32)
-	pitch, _ := strconv.ParseFloat(factoryData.PitchAngle, 32)
-
 	data = Data{
-		Power:     float32(power),
-		Yew:       float32(yew),
-		Pitch1:    float32(pitch),
-		WindSpeed: float32(windSpeed),
-		Rpm:       float32(rotorSpeed),
+		Power:      updateData.FactoryUpdateData.ActivePower,
+		RotorSpeed: updateData.FactoryUpdateData.RotorSpeed,
+		Yew:        updateData.FactoryUpdateData.YawState,
+		Pitch1:     updateData.FactoryUpdateData.PitchAngle,
+		WindSpeed:  updateData.FactoryUpdateData.WindSp1s,
 	}
-
-	alarmInfoList := factoryData.AlarmInfo
-	// 部件报警信息不为空，
-	for _, alarmInfo := range alarmInfoList {
-		//部件报警信息不为空时，更新对应的部件status， 是否需要插入到报警表中？
-		var machineUUID string
-		tx.Table("machine").Select("uuid").Where("id = ?", turbineId).Find(&machineUUID)
-		if err = tx.Table("part").Where("type_en = ? and machine_uuid = ?", alarmInfo.ComponentName, machineUUID).
-			Update("status", alarmInfo.AlarmDegree).Error; err != nil {
-			err = errors.New("更新部件状态错误")
-			tx.Rollback()
-			return
-		}
-	}
-
+	// 更新风机状态信息
+	var point Point
 	// 测点信息
-	channelContentList := factoryData.CMSData.ChannelContentList
-	for _, channelContent := range channelContentList {
-		//接收通道数据
-		data.Length = strconv.Itoa(channelContent.WaveLength)
-		switch channelContent.SignalType {
-		case 0:
-			data.Measuredefine = "加速度"
-		case 1:
-			data.Measuredefine = "速度"
-		case 2:
-			data.Measuredefine = "位移"
-		}
-
-		switch channelContent.WaveType {
-		case 0:
-			data.Datatype = "TIMEWAVE"
-		case 1:
-			data.Datatype = "LONGTIMEWAVE"
-		case 2:
-			data.Datatype = "TACH"
-		}
-		//componetName、locationSection、同时查询出测点uuid 填入data中
-		var point Point
-		if err = tx.Table("point").Joins("LEFT JOIN part on point.part_uuid = part.uuid").
-			Where("part.type_en = ? AND point.location = ?", channelContent.ComponentName, channelContent.LocationSection).
-			Find(&point).Error; err != nil {
-			err = errors.New("查询测点信息错误")
-			tx.Rollback()
-			return
-		}
-		data.PointUUID = point.UUID
-		data.PointID = point.ID
-		data.Time = channelContent.AcquisitionTime
-		data.TimeSet, _ = StrtoTime("2006-01-02 15:04:05", channelContent.AcquisitionTime)
-		data.SampleFreq = int(channelContent.SampleRate)
-
-		data.Result = channelContent.Eigenvalue
-		err = tx.Table("data_" + turbineIdStr).Omit("Wave").Create(&data).Error
-
-		//波形数据不等于空时, 通信协议规定，数据为base64加密，首先进行解密，在进行数据操作。
-		if channelContent.WaveData != "" {
-			encodingString := channelContent.WaveData
-			decodedBytes, _ := base64.StdEncoding.DecodeString(encodingString)
-			data.Wave.DataFloat = decodedBytes
-			data.Wave.DataUUID = data.UUID
-		}
-
-		err = data.DataAnalysis_2(db, "localhost:3006", turbineIdStr)
-		if err != nil {
-			err = errors.New("数据分析失败")
-		}
-		// 防止前步插入数据失败
-		if data.ID == 0 {
-			err = tx.Table("data_" + turbineIdStr).Create(&data).Error
-			if err != nil {
-				err = errors.New("数据插入失败")
-				return
-			}
-		} else {
-			err = tx.Table("data_" + turbineIdStr).Save(&data).Error
-		}
-		// 波形数据不等于空时，插入波形数据
-		if len(data.Wave.DataFloat) != 0 || len(data.Wave.SpectrumFloat) != 0 || len(data.Wave.SpectrumEnvelopeFloat) != 0 {
-			data.Wave.DataUUID = data.UUID
-			tx.Table("wave_"+turbineIdStr).Where("data_uuid=?", data.UUID).Select("id").Scan(&data.Wave)
-			if data.Wave.ID == 0 {
-				err = tx.Table("wave_" + turbineIdStr).Create(&data.Wave).Error
-				if err != nil {
-					err = errors.New("数据插入失败")
+	for _, cmsData := range updateData.FactoryUpdateData.CMSDatas {
+		for _, alarm := range cmsData.AlarmInfo {
+			channelContentList := cmsData.ChannelContentList
+			if channelContentList.ComponentName == alarm.ComponentName {
+				// 根据测点名和测点位置,填充data中测点相关部分
+				if err = db.Table("point").Joins("LEFT JOIN part on part.uuid = point.part_uuid").
+					Where("point.name = ? AND part.name = ? AND part.machine_uuid = ?", channelContentList.LocationSection, channelContentList.ComponentName, machine.UUID).Find(&point).
+					Error; err != nil {
+					err = errors.New("查询测点信息错误")
 					return
 				}
-			} else {
-				err = tx.Table("wave_" + turbineIdStr).Omit("created_at").Clauses(clause.Locking{Strength: "UPDATE"}).Save(&data.Wave).Error
-				if err != nil {
-					err = errors.New("数据更新失败")
-					return
-				}
-			}
-		}
-		//更新 风机最新数据时间
-		var ptime time.Time
-		err = tx.Table("point").Where("id=?", data.PointID).Pluck("last_data_time", &ptime).Error
-		if err != nil {
-			err = errors.New("查询最新数据时间失败")
-			return
-		}
-		if ptime.Unix() < data.TimeSet {
-			err = tx.Table("point").Where("id=?", data.PointID).Clauses(clause.Locking{Strength: "UPDATE"}).Update("last_data_time", data.Time).Error
-			if err != nil {
-				err = errors.New("更新最新数据时间失败")
-				return
-			}
-		}
-		if ptime.Unix() < data.TimeSet {
-			err = tx.Table("point").Where("id=?", data.PointID).Update("last_data_time", data.Time).Error
-			if err != nil {
-				err = errors.New("更新最新数据时间失败")
-				tx.Rollback()
-				return
-			}
-		}
-		//通道报警类型不为空的话, 通道报警个数不一定为一个，需要分割字符串后进行比对
-		if channelContent.ChannelAlarmType != "" {
-			splitStr := strings.Split(channelContent.ChannelAlarmType, ",")
-			for _, valueStr := range splitStr {
-				if valueStr != "" {
-					value, _ := strconv.Atoi(valueStr)
-					faultName := faultMap[value]
-					aler := Alert{
-						DataUUID:  data.UUID,
-						PointUUID: data.PointUUID,
-						Location:  point.Name,
-						Level:     3,
-						Strategy:  "通道报警",
-						Desc:      faultName,
-						TimeSet:   data.TimeSet,
-						Rpm:       data.Rpm,
-						Source:    0,
-						Suggest:   "检修",
+				data.PointUUID = point.UUID
+				data.PointID = point.ID
+				// 接收通道关于数据信息
+				data.Datatype = channelContentList.WaveDefDescription
+				data.Time = channelContentList.AcquisitionTime
+				data.TimeSet, _ = StrtoTime("2006-01-02 15:04:05", channelContentList.AcquisitionTime)
+				data.Datatype = channelContentList.WaveType
+				data.SampleFreq, _ = strconv.Atoi(channelContentList.SampleRate)
+				data.Result = channelContentList.Eigenvalue
+				data.Rpm = channelContentList.Rpm
+				data.Status = uint8(channelContentList.ChannelAlarmType)
+				// length
+				data.Length = channelContentList.WaveLength
+				err = db.Table(fmt.Sprintf("data_%d", machine.ID)).Omit("Wave").Omit("Alert").Create(&data).Error
+
+				// 再处理波形数据,waveData 和 Spectrum为空格分开的浮点数组成的字符串, 转换成对应格式后存入data.Wave中
+				// data string是为了后续算法调用方便
+				data.Wave.DataString = channelContentList.WaveData
+				if channelContentList.WaveData != "" {
+					originy := make([]float32, 0)
+					// 处理waveData
+					origin := strings.Trim(channelContentList.WaveData, " ")
+					onum := strings.Split(origin, " ")
+					for _, v := range onum {
+						temp, _ := strconv.ParseFloat(v, 32)
+						originy = append(originy, float32(temp))
 					}
-					id := CheckTagExist(tx, point.UUID, faultName)
-					tx.Table("data_"+turbineIdStr).Where("uuid =?", data.UUID).Update("alert_id", id)
-					data.Alert = append(data.Alert, aler)
+					data.Wave.DataFloat, err = Encode(originy)
+				}
+				// 处理Spectrum
+				if channelContentList.SpectrumData != "" {
+					originy := make([]float32, 0)
+					orignin := strings.Trim(channelContentList.SpectrumData, " ")
+					onum := strings.Split(orignin, " ")
+					for _, v := range onum {
+						temp, _ := strconv.ParseFloat(v, 32)
+						originy = append(originy, float32(temp))
+					}
+					data.Wave.SpectrumFloat, err = Encode(originy)
+				}
+				// 防止前步插入数据失败
+				if data.ID == 0 {
+					err = db.Table(fmt.Sprintf("data_%d", machine.ID)).Omit(clause.Associations).Create(&data).Error
+					if err != nil {
+						err = errors.New("数据插入失败")
+						return
+					}
+				} else {
+					err = db.Table(fmt.Sprintf("data_%d", machine.ID)).Omit(clause.Associations).Clauses(clause.Locking{Strength: "UPDATE"}).Save(&data).Error
+				}
+				// 波形数据不等于空时，插入波形数据
+				if len(data.Wave.DataFloat) != 0 || len(data.Wave.SpectrumFloat) != 0 || len(data.Wave.SpectrumEnvelopeFloat) != 0 {
+					data.Wave.DataUUID = data.UUID
+					db.Table(fmt.Sprintf("wave_%d", machine.ID)).Where("data_uuid=?", data.UUID).Select("id").Scan(&data.Wave)
+					if data.Wave.ID == 0 {
+						err = db.Table(fmt.Sprintf("wave_%d", machine.ID)).Create(&data.Wave).Error
+						if err != nil {
+							err = errors.New("数据插入失败")
+							return
+						}
+					} else {
+						err = db.Table(fmt.Sprintf("wave_%d", machine.ID)).Omit("created_at").Clauses(clause.Locking{Strength: "UPDATE"}).Save(&data.Wave).Error
+						if err != nil {
+							err = errors.New("数据更新失败")
+							return
+						}
+					}
+				}
+				//更新 风机最新数据时间
+				var ptime time.Time
+				err = tx.Table("point").Where("id=?", data.PointID).Pluck("last_data_time", &ptime).Error
+				if err != nil {
+					err = errors.New("查询最新数据时间失败")
+					return
+				}
+				if ptime.Unix() < data.TimeSet {
+					err = tx.Table("point").Where("id=?", data.PointID).Clauses(clause.Locking{Strength: "UPDATE"}).Update("last_data_time", data.Time).Error
+					if err != nil {
+						err = errors.New("更新最新数据时间失败")
+						return
+					}
 				}
 			}
+			//新开协程, 执行频带幅值、故障树报警
+			go func() {
+				//TODO DEBUG 报警 报警go进程，不耽误数据导入？
+				err = DataAlert_2(db, data, turbineIdStr, ipport)
+				if err != nil {
+					modlog.Error("频带报警出错。err:" + err.Error())
+				}
+
+			}()
 		}
 		//构建算法请求体
 		requestBody := AlgorithmReqBody{
@@ -1105,7 +1059,7 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 							}
 						}
 						data.TypiFeature = responseBody.TypiFeature
-						if err = tx.Table("data_" + turbineIdStr).Save(&data).Error; err != nil {
+						if err = tx.Table(fmt.Sprintf("data_%d", machine.ID)).Save(&data).Error; err != nil {
 							err = errors.New("数据更新失败")
 							tx.Rollback()
 							return
@@ -1189,7 +1143,7 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 							Suggest:   "检修",
 						}
 						id := CheckTagExist(tx, point.UUID, responseBody.Data.FaultName)
-						tx.Table("data_"+turbineIdStr).Where("uuid =?", data.UUID).Update("tag", id)
+						tx.Table(fmt.Sprintf("data_%d", machine.ID)).Where("uuid =?", data.UUID).Update("tag", id)
 						data.Alert = append(data.Alert, aler)
 					}
 
@@ -1215,14 +1169,12 @@ func (factoryData *FactoryUpdateData) InsertFactoryData(db *gorm.DB, farmIdStr, 
 				}
 			}
 		}
-
-	}
-
-	if len(data.Alert) > 0 {
-		if err = tx.Table("alert").Create(&data.Alert).Error; err != nil {
-			tx.Rollback()
-			err = errors.New("数据通道报警插入失败")
-			return
+		if len(data.Alert) > 0 {
+			if err = tx.Table("alert").Create(&data.Alert).Error; err != nil {
+				tx.Rollback()
+				err = errors.New("数据通道报警插入失败")
+				return
+			}
 		}
 	}
 	tx.Commit()
