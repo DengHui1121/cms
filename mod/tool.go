@@ -126,37 +126,30 @@ func UppertoPoint(db *gorm.DB, upper string, id string) []string {
 }
 
 // 检查tag是否存在，存在返回tag的id，不存在插入数据库后返回tag的id
-func CheckTagExist(tx *gorm.DB, pointUUID, desc string) (tagId int) {
+func CheckTagExist(tx *gorm.DB, pointUUID, desc string) (tag FaultTagSecond) {
 	// 开始判断DESC在fault_tag中是否存在，如果存在，拼接id字符串，如果不存在，则加入到fault_tag，在拼接id字符串
 	// 首先根据测点找到部件的类型
 	var partType string
-	var tag FaultTag
-	tx.Table("point").Select("part.type_en").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", pointUUID).Find(&partType)
-	tx.Table("fault_tag").Where("name = ? and type = ?", desc, partType).Find(&tag)
-	if tag.Id != 0 {
-		tagId = tag.Id
-	} else {
-		var lastTag FaultTag
-		tx.Table("fault_tag").Order("id desc").First(&lastTag)
-		newTag := FaultTag{
-			Name:   desc,
-			Type:   partType,
-			Num:    lastTag.Num + 1,
-			Source: true,
-		}
-		tx.Table("fault_tag").Create(&newTag)
-		tagId = newTag.Id
-	}
+	// 查询部件类型
+	tx.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", pointUUID).Find(&partType)
+	// 首先根据部件类型寻找一级标签的id传入tag中
+	tx.Model(&FaultTagFirst{}).Select("id").Where("name = '自动报警' and type = ?", partType).Find(&tag.FaultTagFirstID)
+	// 然后根据一级标签的id和二级标签的name寻找二级标签
+	tag.Name = desc
+	tag.Source = true
+	tx.Model(&tag).Where("upper = ? AND name = ?", tag.FaultTagFirstID, desc).FirstOrCreate(&tag)
 	return
 }
 
-func IntArrayToString(arr []int) string {
+func IntArrayToString(db *gorm.DB, arr []int) string {
 	strArr := make([]string, len(arr))
 
 	for i, v := range arr {
-		strArr[i] = fmt.Sprintf("%d", v)
+		// 从二级标签表获取tag
+		var tag FaultTagSecond
+		db.Table("fault_tag_second").Where("id = ?", v).Find(&tag)
+		strArr[i] = fmt.Sprintf("%d-%d", tag.FaultTagFirstID, v)
 	}
-
 	result := strings.Join(strArr, ",")
 	return result
 }

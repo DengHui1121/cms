@@ -119,6 +119,7 @@ type Windfarm2 struct {
 	InstalledCapacity float32   `gorm:"-" json:"installedCapacity"`
 	Status            uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
 	MachineCounts     int       `gorm:"-" json:"machineCounts"`
+	MachineType       int       `gorm:"-" json:"machineType"`
 	Machines          []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
 	//一年内故障次数
 	TotalAlertCount int `json:"total_alert_count"  gorm:"-"`
@@ -183,7 +184,46 @@ type Machine struct {
 	WindfarmID   uint   `gorm:"-" json:"windfield_id,string"`
 	WindfarmUUID string `json:"-"`
 	Name         string `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
-	Type         string `gorm:"not null; comment:风机类型;" json:"model,int"`
+	Type         int    `gorm:"not null; comment:风机类型;type:char(1)" json:"model,int"`
+	// PointVersion    string  `json:"point_version,omitempty"`
+	// PropertyVersion string  `json:"property_version,omitempty"`
+	// AlertVersion    string  `json:"alert_version,omitempty"`
+	FanVersion      string  `gorm:"comment:风机标准" json:"version"` //风机标准
+	TreeVersion     string  `gorm:"comment:设备树版本" json:"tree_version"`
+	Unit            string  `json:"unit" toml:"unit"`
+	Desc            string  `gorm:"comment:风机描述" json:"fan_name"`
+	BuiltTime       string  `gorm:"comment:投运时间" json:"time"`
+	Capacity        float32 `gorm:"column:capacity; comment:容量; default:0.0" json:"capacity,string"`
+	OverinsuredTime string  `gorm:"column:overinsuredTime;comment:过保时间" json:"overinsuredTime"`
+	Status          uint8   `gorm:"type:tinyint;default:0;comment:状态" json:"status,string"`
+	Genfactory      string  `gorm:"column:genfactory;comment:发电机厂家" json:"genfactory" toml:"genfactory"`      //TODO 发电机厂家
+	Gentype         string  `gorm:"column:gentype;comment:发电机型号" json:"gentype" toml:"gentype"`               //TODO 发电机型号
+	Gearfactory     string  `gorm:"column:gbxfactory;comment:齿轮箱厂家" json:"gbxfactory" toml:"gbxfactory"`      //TODO 齿轮箱厂家
+	Geartype        string  `gorm:"column:gbxtype;comment:齿轮箱型号" json:"gbxtype" toml:"gbxtype"`               //TODO 齿轮箱型号
+	Mainshaffactory string  `gorm:"column:mbrfactory;comment:主轴厂家" json:"mbrfactory" toml:"mbrfactory"`       //TODO 主轴厂家
+	Mainshaftype    string  `gorm:"column:mbrtype;comment:主轴型号" json:"mbrtype" toml:"mbrtype"`                //TODO 主轴型号
+	Bladefactory    string  `gorm:"column:bladefactory;comment:叶片厂家" json:"bladefactory" toml:"bladefactory"` //TODO 叶片厂家
+	Bladetype       string  `gorm:"column:bladetype;comment:叶片型号" json:"bladetype" toml:"bladetype"`          //TODO 叶片型号
+	Health          float64 `gorm:"-" json:"health"`                                                          //全生命周期
+	Tag             int     `gorm:"column:tag;comment:故障标签" json:"tag"`
+	TotalAlertCount int     `json:"total_alert_count"  gorm:"-"` //一年内故障次数
+	Parts           []Part  `json:"children" gorm:"foreignKey:MachineUUID;references:UUID"`
+	FanFront        string  `gorm:"-" json:"fan_front,omitempty"` //用于批量新建
+	StartNum        int     `json:"start_num,omitempty" gorm:"-"`
+	DescFront       string  `gorm:"-" json:"desc_front,omitempty"`
+	DescStartNum    int     `json:"desc_start_num,omitempty" gorm:"-"`
+	EndNum          int     `json:"end_num,omitempty" gorm:"-"`
+	BandAlertSet    bool    `gorm:"band_alert_set" json:"band_alert_bool"` //故障使能开关
+	TreeAlertSet    bool    `gorm:"tree_alert_set" json:"tree_alert_bool"`
+}
+type Machine2 struct {
+	Model        `gorm:"embedded"`
+	ID           uint        `gorm:"primarykey" json:"id,string"`
+	UUID         string      `gorm:"unique_index" json:"uuid"`
+	WindfarmID   uint        `gorm:"-" json:"windfield_id,string"`
+	WindfarmUUID string      `json:"-"`
+	Name         string      `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
+	Type         interface{} `gorm:"not null; comment:风机类型;" json:"model,int"`
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`
 	// AlertVersion    string  `json:"alert_version,omitempty"`
@@ -518,7 +558,7 @@ type Data struct {
 	Datatag       int8    `gorm:"type:tinyint;default:1" json:"datatag"`                       //不压缩 赋值为1
 	Length        string  `json:"length"`                                                      //长度
 	SampleFreq    int     `json:"sample_freq"`                                                 //采样频率
-	Datatype      string  `json:"datatype"`                                                    //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
+	Datatype      string  `json:"datatype" gorm:"column:datatype; default:TIMEWAVE"`           //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
 	Measuredefine string  `json:"define"`                                                      //测量参数描述
 	Filepath      string  `json:"file_name"`                                                   //数据文件名
 	Rpm           float32 `json:"rpm"`                                                         //转速
@@ -699,6 +739,7 @@ type LimitCondition struct {
 	Endtime       string  `json:"end_time" query:"end_time"`           //结束时间
 	Datatype      string  `json:"datatype" query:"datatype"`           //数据类型
 	Measuredefine string  `json:"measuredefine" query:"measuredefine"` //测量方法
+	TagLevel      int     `json:"taglevel" query:"-"`                  //标签级别
 	Tag           string  `json:"tag" query:"tag"`
 	Freq          string  `json:"freq" query:"freq"`
 }
@@ -769,7 +810,7 @@ type Data_Update struct {
 	Datatag       int8    `gorm:"type:tinyint;default:1" json:"datatag"`                        //不压缩 赋值为1
 	Length        string  `json:"length"`                                                       //长度
 	SampleFreq    int     `json:"sample_freq"`                                                  //采样频率
-	Datatype      string  `json:"datatype"`                                                     //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
+	Datatype      string  `json:"datatype" gorm:"column:datatype; default:TIMEWAVE"`            //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
 	Measuredefine string  `json:"define"`                                                       //测量参数描述
 	Filepath      string  `json:"file_name"`                                                    //数据文件名
 	Rpm           float32 `json:"rpm"`                                                          //转速
@@ -1142,8 +1183,8 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 							Source:    2,
 							Suggest:   "检修",
 						}
-						id := CheckTagExist(tx, point.UUID, responseBody.Data.FaultName)
-						tx.Table(fmt.Sprintf("data_%d", machine.ID)).Where("uuid =?", data.UUID).Update("tag", id)
+						tag := CheckTagExist(tx, point.UUID, responseBody.Data.FaultName)
+						tx.Table(fmt.Sprintf("data_%d", machine.ID)).Where("uuid =?", data.UUID).Update("tag", fmt.Sprintf("%d-%d", tag.FaultTagFirstID, tag.Id))
 						data.Alert = append(data.Alert, aler)
 					}
 
@@ -1191,7 +1232,7 @@ type Algorithm struct {
 	Id         int64  `json:"id" gorm:"id"`
 	Name       string `json:"name" gorm:"name; comment:预警算法名"`
 	Url        string `json:"url" gorm:"column:url; comment:预警算法url"`
-	PointUUID  string `json:"point_uuid" gorm:"point_uuid"`
+	PointUUID  string `json:"point_uuid" gorm:"column:point_uuid"`
 	Type       string `json:"type" gorm:"column:type;comment:算法类型"`
 	Enabled    bool   `json:"status" gorm:"column:enabled; type:tinyint(1);comment:是否启用;default:1"`
 	BuiltTime  string `json:"builtTime" gorm:"column:built_time; comment:投运时间"`
@@ -1425,22 +1466,36 @@ type ParsingRESP struct {
 	Total int64     `json:"total"`
 }
 
-type FaultTag struct {
-	Id     int    `json:"id" gorm:"primarykey"`
-	Num    int    `json:"num" gorm:"column:num; comment:序号"`
-	Type   string `json:"type" gorm:"column:type; comment:类型"`
-	Name   string `json:"name" gorm:"column:name; comment:故障"`
-	Source bool   `json:"source" gorm:"column:source; comment:来源, 0表示故障反馈, 1表示报警说明"`
-	IsDel  bool   `json:"isDel" gorm:"is_del; comment:是否删除"`
+// 二级故障标签表
+type FaultTagSecond struct {
+	Id              int    `json:"id" gorm:"primarykey"`
+	Name            string `json:"name" gorm:"column:name; comment:故障"`
+	FaultTagFirstID int    `json:"upper" gorm:"column:upper; comment:上限; type:int;"`
+	Source          bool   `json:"source" gorm:"column:source; comment:来源, 0表示故障反馈, 1表示报警说明"`
+	Level           int    `json:"level" gorm:"column:level;type:int;default:2"`
+	IsDel           bool   `json:"isDel" gorm:"is_del; comment:是否删除;dafault:0"`
 }
 
-func (*FaultTag) TableName() string {
-	return "fault_tag"
+// 一级故障标签
+type FaultTagFirst struct {
+	Id        int              `json:"id" gorm:"primarykey"`
+	Type      string           `json:"type" gorm:"column:type; comment:类型"`
+	Name      string           `json:"name" gorm:"column:name; comment:故障"`
+	Level     int              `json:"level" gorm:"column:level;type:int;default:1"`
+	Childrens []FaultTagSecond `json:"children" gorm:"foreignKey:upper"`
+	IsDel     bool             `json:"isDel" gorm:"is_del; comment:是否删除;default:0"`
+}
+
+func (*FaultTagFirst) TableName() string {
+	return "fault_tag_first"
+}
+func (*FaultTagSecond) TableName() string {
+	return "fault_tag_second"
 }
 
 type FaultTagVo struct {
-	List  []FaultTag `json:"list"`
-	Total int64      `json:"total"`
+	List  []FaultTagSecond `json:"list"`
+	Total int64            `json:"total"`
 }
 
 // 上传数据解析数据， 匹配info所用到的字段
@@ -1513,6 +1568,7 @@ type FaultBackInfo struct {
 	CheckTime      string  `json:"checkTime" gorm:"column:check_time; comment:检查时间"`
 	RepairTime     string  `json:"repairTime" gorm:"column:repair_time; comment:维修时间"`
 	RepairPart     string  `json:"repairPart" gorm:"column:repair_part; comment:维修部件"`
+	FileId         int     `json:"fileId" gorm:"column:file_id"`
 	File           string  `json:"file" gorm:"column:fileName"`
 	FileDir        string  `json:"fileDir" gorm:"column:fileDir"`
 	Level          int     `json:"level" gorm:"column:status; comment:状态"`

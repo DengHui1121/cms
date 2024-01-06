@@ -664,7 +664,7 @@ func TreeAlertSet_2(t *alert.Tree, db *gorm.DB, pdata Data, filename string) (ui
 	ta.PointID = pdata.PointID
 	ta.PointUUID = pdata.PointUUID
 	var partType string
-	db.Table("point").Select("part.type_en").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", ta.PointUUID).Find(&partType)
+	db.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", ta.PointUUID).Find(&partType)
 	ta.TimeSet = t.DataTime
 	//ta.location 部件
 	ta.Location = t.Type
@@ -690,14 +690,14 @@ func TreeAlertSet_2(t *alert.Tree, db *gorm.DB, pdata Data, filename string) (ui
 			for k := range t.Stages {
 				if t.Stages[k].Result {
 					ta.Desc = t.Stages[k].Name + t.Stages[k].Desc
-					tagIds = append(tagIds, CheckTagExist(db, ta.PointUUID, ta.Desc))
+					tagIds = append(tagIds, CheckTagExist(db, ta.PointUUID, ta.Desc).Id)
 					ta.Suggest = t.Stages[k].Suggest
 					ta.TreeAlert.TreeName = t.Stages[k].Name
 				}
 			}
 		} else {
 			ta.Desc = t.Name + t.Desc
-			tagIds = append(tagIds, CheckTagExist(db, ta.PointUUID, ta.Desc))
+			tagIds = append(tagIds, CheckTagExist(db, ta.PointUUID, ta.Desc).Id)
 			ta.Suggest = t.Suggest
 			ta.TreeAlert.TreeName = t.Name
 		}

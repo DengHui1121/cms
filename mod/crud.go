@@ -429,7 +429,31 @@ func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string
 		for _, v := range tempd {
 			tgroup = append(tgroup, TimetoStr(v.TimeSet).Format("2006-01-02 15:04:05"))
 			idgroup = append(idgroup, fmt.Sprint(v.ID))
-			rgroup = append(rgroup, v.Rmsvalue)
+			switch ctype {
+			case "rmsvalue":
+				rgroup = append(rgroup, v.Rmsvalue)
+			case "indexkur":
+				rgroup = append(rgroup, v.Indexkur)
+			case "indexi":
+				rgroup = append(rgroup, v.Indexi)
+			case "indexk":
+				rgroup = append(rgroup, v.Indexk)
+			case "indexl":
+				rgroup = append(rgroup, v.Indexl)
+			case "indexc":
+				rgroup = append(rgroup, v.Indexc)
+			case "indexxr":
+				rgroup = append(rgroup, v.Indexxr)
+			case "indexmax":
+				rgroup = append(rgroup, v.Indexmax)
+			case "indexmin":
+				rgroup = append(rgroup, v.Indexmin)
+			case "indexmean":
+				rgroup = append(rgroup, v.Indexmean)
+			case "indexeven":
+				rgroup = append(rgroup, v.Indexeven)
+			}
+
 		}
 		plot.Currentplot[k].Xaxis = tgroup
 		plot.Currentplot[k].Yaxis = rgroup
@@ -650,7 +674,7 @@ func DataAlert_2(db *gorm.DB, pdata Data, fid string, ipport string) (err error)
 		levels = append(levels, uint(mlevel))
 		tagIdsOfAlert = append(tagIdsOfAlert, tagIds...)
 	}
-	tagStr := IntArrayToString(tagIdsOfAlert)
+	tagStr := IntArrayToString(db, tagIdsOfAlert)
 	_, maxlevel := MaxStatus(levels)
 	//* 报警后的风机状态字段更新
 	err = db.Transaction(func(tx *gorm.DB) error {

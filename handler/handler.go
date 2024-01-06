@@ -302,7 +302,8 @@ func FindTree(c echo.Context) error {
 		err = db.Table("windfarm").Select("windfarm.*, factory.name factoryName, factory.id factoryId").Omit("created_at", "updated_at").Joins("LEFT JOIN factory ON windfarm.factory_uuid = factory.uuid").Preload("Machines").
 			Last(&ff, id).Error
 		err = db.Table("machine").Select("SUM(machine.capacity) as installed_capacity").Where("machine.windfarm_uuid =?", ff.UUID).Find(&ff.InstalledCapacity).Error
-		err = db.Table("machine").Select("COUNT(machine.id)").Where("machine.windfarm_uuid =?", ff.UUID).Find(&ff.MachineCounts).Error
+		err = db.Table("machine").Select("COUNT(machine.id)").Where("machine.windfarm_uuid = ?", ff.UUID).Find(&ff.MachineCounts).Error
+		err = db.Table("machine").Select("COUNT(DISTINCT  machine.type)").Where("machine.windfarm_uuid = ?", ff.UUID).Find(&ff.MachineType).Error
 		var Longitudestr, Latitudestr string
 		if ff.Longitude == float32(int32(ff.Longitude)) {
 			if ff.Longitude == 0 {
@@ -1072,7 +1073,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 								Rpm:       pdata.Rpm,
 								Source:    0,
 							}
-							id := mod.CheckTagExist(tx, pdata.PointUUID, responseBody.Data.FaultName)
+							tag := mod.CheckTagExist(tx, pdata.PointUUID, responseBody.Data.FaultName)
 							if err = tx.Table("alert").Create(&aler).Error; err != nil {
 								tx.Rollback()
 								err = errors.New("报警插入失败")
@@ -1085,7 +1086,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 								return err
 							}
 							// 将id更新到pdata.tag中
-							if err = tx.Table("data_"+fid).Where("uuid =?", pdata.UUID).Update("tag", id).Error; err != nil {
+							if err = tx.Table("data_"+fid).Where("uuid =?", pdata.UUID).Update("tag", fmt.Sprintf("%d-%d", tag.FaultTagFirstID, tag.Id)).Error; err != nil {
 								tx.Rollback()
 								err = errors.New("数据更新失败")
 								return err
@@ -1792,7 +1793,7 @@ func FindStd(c echo.Context) error {
 				ErrCheck(c, returnData, err, "查询错误")
 				return err
 			}
-			var fan mod.Machine
+			var fan mod.Machine2
 			err = json.Unmarshal(info.Set, &fan)
 			fan.FanVersion = info.Version
 			if err != nil {
@@ -2531,7 +2532,7 @@ func GetFarmFaultFeedBackHandler(c echo.Context) (err error) {
 		//故障反馈表：如果测点uuid不为空，则location显示point.name，测点uuid不存在,location为part.name
 		db.Table("fault_back fb").
 			Select("fb.id,machine.id machineId, fb.start_time_set timeSet, fb.end_time_set as endTimeSet,fb.source source, machine.`desc` turbineName, fb.`status` `status`, COALESCE(point.`name`, part.`name`) AS location,fb.tag `desc`").
-			Joins("LEFT JOIN fault_tag ft on ft.id = fb.tag ").Joins("LEFT JOIN part on part.uuid = fb.part_uuid").
+			Joins("LEFT JOIN fault_tag_second ft on ft.id = fb.tag ").Joins("LEFT JOIN part on part.uuid = fb.part_uuid").
 			Joins("LEFT JOIN point on point.uuid = fb.point_uuid").Joins("LEFT JOIN machine on machine.uuid = fb.machine_uuid").
 			Joins("LEFT JOIN windfarm on windfarm.uuid = machine.windfarm_uuid").Where("windfarm.id = ? AND fb.is_del = FALSE", id),
 	)
@@ -2574,6 +2575,7 @@ func AddAlgorithmHandler(c echo.Context) (err error) {
 		return err
 	}
 	if algorithmDTO.Id != 0 {
+		err = errors.New("已存在同名算法")
 		mainlog.Error("已存在同名算法 %v", err)
 		ErrCheck(c, returnData, err, "已存在同名算法")
 		return err
@@ -2626,10 +2628,22 @@ func DeleteAlgorithmHandler(c echo.Context) (err error) {
 // 更新算法
 func UpdateAlgorithmHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
-	var algorithm mod.Algorithm
+	var algorithm, algorithm2 mod.Algorithm
 	if err := c.Bind(&algorithm); err != nil {
 		mainlog.Error("参数错误 %v", err)
 		ErrCheck(c, returnData, err, "参数错误")
+		return err
+	}
+	//更新前名字查重判断
+	if err = db.Table("algorithm").Where("name = ? and id != ?", algorithm.Name, algorithm.Id).Find(&algorithm2).Error; err != nil {
+		mainlog.Error("更新算法时，查重失败 %v", err)
+		ErrCheck(c, returnData, err, "更新算法时，查重失败")
+		return err
+	}
+	if algorithm2.Id != 0 {
+		err = errors.New("已存在同名算法")
+		mainlog.Error("已存在同名算法 %v", err)
+		ErrCheck(c, returnData, err, "已存在同名算法")
 		return err
 	}
 	algorithm.UpdateTime = mod.GetCurrentTime()
@@ -2839,39 +2853,57 @@ func UpdateParsingHandler(c echo.Context) (err error) {
 // 获取故障标签
 func GetFaultTagHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
-	var res mod.FaultTagVo
-	pointIdStr := c.QueryParam("pointId")
-	typeStr := c.QueryParam("type") // 用于筛选故障标签。
+	//var res mod.FaultTagVo
+	//pointIdStr := c.QueryParam("pointId")
+	//typeStr := c.QueryParam("type") // 用于筛选故障标签。
+	//condition := "1 = 1 AND is_del = false"
+	//// 当pointIdStr 不为空时，查询测点所属上级的测点类型，然后查询该类型下的故障标签
+	//if pointIdStr != "" {
+	//	pointId, err := strconv.Atoi(pointIdStr)
+	//	if err != nil {
+	//		mainlog.Error("id string转int失败 %v", err)
+	//		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
+	//		return err
+	//	}
+	//	var partType string
+	//	if err = db.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.id =?", pointId).Find(&partType).Error; err != nil {
+	//		mainlog.Error("获取故障标签失败 %v", err)
+	//		ErrCheck(c, returnData, err, "获取故障标签失败")
+	//		return err
+	//	}
+	//	condition = condition + fmt.Sprintf(" AND `type` = '%s'", partType)
+	//}
+	//if typeStr == "faultback" {
+	//	condition = condition + fmt.Sprintf(" AND `source` = %v", false)
+	//}
+	//if typeStr == "alertdesc" {
+	//	condition = condition + fmt.Sprintf(" AND `source` = %v", true)
+	//}
+	//if err = db.Model(mod.FaultTagSecond{}).Where(condition).Order("num ASC").Count(&res.Total).Error; err != nil {
+	//	mainlog.Error("获取故障标签失败 %v", err)
+	//	ErrCheck(c, returnData, err, "获取故障标签失败")
+	//	return err
+	//}
+	//
+	//if err = db.Model(mod.FaultTagSecond{}).Where(condition).Order("num ASC").Find(&res.List).Error; err != nil {
+	//	mainlog.Error("获取故障标签失败 %v", err)
+	//	ErrCheck(c, returnData, err, "获取故障标签失败")
+	//	return err
+	//}
+	var res []mod.FaultTagFirst
+	part := c.QueryParam("part_uuid")
 	condition := "1 = 1 AND is_del = false"
-	// 当pointIdStr 不为空时，查询测点所属上级的测点类型，然后查询该类型下的故障标签
-	if pointIdStr != "" {
-		pointId, err := strconv.Atoi(pointIdStr)
-		if err != nil {
-			mainlog.Error("id string转int失败 %v", err)
-			ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
-			return err
-		}
+	if part != "" {
+		// 查询部件的类型
 		var partType string
-		if err = db.Table("point").Select("part.type_en").Joins("left join part on part.uuid = point.part_uuid").Where("point.id =?", pointId).Find(&partType).Error; err != nil {
+		if err = db.Table("part").Select("type").Where("uuid = ?", part).Find(&partType).Error; err != nil {
 			mainlog.Error("获取故障标签失败 %v", err)
 			ErrCheck(c, returnData, err, "获取故障标签失败")
 			return err
 		}
 		condition = condition + fmt.Sprintf(" AND `type` = '%s'", partType)
 	}
-	if typeStr == "faultback" {
-		condition = condition + fmt.Sprintf(" AND `source` = %v", false)
-	}
-	if typeStr == "alertdesc" {
-		condition = condition + fmt.Sprintf(" AND `source` = %v", true)
-	}
-	if err = db.Table("fault_tag").Where(condition).Order("num ASC").Count(&res.Total).Error; err != nil {
-		mainlog.Error("获取故障标签失败 %v", err)
-		ErrCheck(c, returnData, err, "获取故障标签失败")
-		return err
-	}
-
-	if err = db.Table("fault_tag").Where(condition).Order("num ASC").Find(&res.List).Error; err != nil {
+	if err = db.Model(&mod.FaultTagFirst{}).Where(condition).Preload("Childrens", "is_del = false").Find(&res).Error; err != nil {
 		mainlog.Error("获取故障标签失败 %v", err)
 		ErrCheck(c, returnData, err, "获取故障标签失败")
 		return err
@@ -2883,13 +2915,14 @@ func GetFaultTagHandler(c echo.Context) (err error) {
 // 新增故障标签
 func AddFaultTagHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
-	var faultTag mod.FaultTag
+	var faultTag mod.FaultTagSecond
 	if err = c.Bind(&faultTag); err != nil {
 		mainlog.Error("参数错误 %v", err)
 		ErrCheck(c, returnData, err, "参数错误")
 		return err
 	}
-	if err = db.Table("fault_tag").Create(&faultTag).Error; err != nil {
+	faultTag.Source = false
+	if err = db.Model(mod.FaultTagSecond{}).Create(&faultTag).Error; err != nil {
 		mainlog.Error("新增故障标签失败 %v", err)
 		ErrCheck(c, returnData, err, "新增故障标签失败")
 		return err
@@ -2902,14 +2935,14 @@ func AddFaultTagHandler(c echo.Context) (err error) {
 // 修改故障标签
 func UpdateFaultTagHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
-	var faultTag mod.FaultTag
+	var faultTag mod.FaultTagSecond
 	if err = c.Bind(&faultTag); err != nil {
 		mainlog.Error("参数错误 %v", err)
 		ErrCheck(c, returnData, err, "参数错误")
 		return err
 	}
 
-	if err = db.Table("fault_tag").Where("id = ? AND is_del = false", faultTag.Id).Updates(&faultTag).Error; err != nil {
+	if err = db.Model(mod.FaultTagSecond{}).Where("id = ? AND is_del = false", faultTag.Id).Updates(&faultTag).Error; err != nil {
 		mainlog.Error("更新故障标签失败 %v", err)
 		ErrCheck(c, returnData, err, "更新故障标签失败")
 		return err
@@ -2940,7 +2973,7 @@ func DeleteFaultTagHandler(c echo.Context) (err error) {
 	}
 
 	//首先查询当前标签所有的子标签
-	if err = db.Table("fault_tag").Where("id = ? AND is_del = false", id).Updates(&mod.FaultTag{IsDel: true}).Error; err != nil {
+	if err = db.Model(mod.FaultTagSecond{}).Where("id = ? AND is_del = false", id).Updates(&mod.FaultTagSecond{IsDel: true}).Error; err != nil {
 		mainlog.Error("删除故障标签失败 %v", err)
 		ErrCheck(c, returnData, err, "删除故障标签失败")
 		return err
@@ -3001,7 +3034,7 @@ func AddFaultFeedbackHandler(c echo.Context) (err error) {
 		for _, pointUUID := range associatedPointsUUID {
 			//查询该测点在指定时间范围内的数据
 			var datas []mod.Data
-			if err = tx.Table("data_"+machineIdStr).Where("point_uuid = ? AND time_set BETWEEN ? AND ?", pointUUID, faultFeedback.StartTimeSet, faultFeedback.EndTimeSet).
+			if err = tx.Table("data_"+machineIdStr).Where("point_uuid = ? AND status != 1 AND time_set BETWEEN ? AND ?", pointUUID, faultFeedback.StartTimeSet, faultFeedback.EndTimeSet).
 				Find(&datas).Error; err != nil {
 				tx.Rollback()
 				mainlog.Error("查询测点数据失败: %v", err)
@@ -3028,7 +3061,7 @@ func AddFaultFeedbackHandler(c echo.Context) (err error) {
 		// 如果故障反馈信息中 point_uuid 不为空，则更新该测点在 FaultStartTime 和 FaultEndTime 之间的数据
 		// 查询该测点在指定时间范围内的数据
 		var datas []mod.Data
-		if err = tx.Table("data_"+machineIdStr).Where("point_uuid =? AND time_set BETWEEN? AND?", faultFeedback.PointUUID, faultFeedback.StartTimeSet, faultFeedback.EndTimeSet).
+		if err = tx.Table("data_"+machineIdStr).Where("point_uuid =? AND status != 1 AND time_set BETWEEN ? AND ?", faultFeedback.PointUUID, faultFeedback.StartTimeSet, faultFeedback.EndTimeSet).
 			Find(&datas).Error; err != nil {
 			tx.Rollback()
 			mainlog.Error("查询指定测点数据失败: %v", err)
@@ -3259,20 +3292,22 @@ func UpdateFaultFeedbackHandler(c echo.Context) (err error) {
 	}
 	tx := db.Begin()
 	// 更新故障反馈id, 如果原有故障反馈有附件id， 则删除原有故障反馈的附件，在重新赋值附件id
-	if faultFeedback.FileId == 0 && fault.FileId != 0 {
+	if fault.FileId != 0 {
 		if err = tx.Table("file").Where("id =?", fault.FileId).Updates(&mod.File{UpdateTime: mod.GetCurrentTime(), IsDel: true}).Error; err != nil {
 			tx.Rollback()
 			mainlog.Error("删除故障反馈失败 %v", err)
 			ErrCheck(c, returnData, err, "删除故障反馈失败")
 			return err
 		}
-		// 使用map， 避免更新时，updates函数不更近false值
-		if err = tx.Table("fault_back").Where("id =?", faultFeedback.Id).Updates(map[string]interface{}{"file_id": 0}).Error; err != nil {
-			tx.Rollback()
-			mainlog.Error("更新故障反馈失败 %v", err)
-			ErrCheck(c, returnData, err, "更新故障反馈失败")
-			return err
-		}
+	}
+	// 先更新附件id为0在更新其他字段
+
+	// 使用map， 避免更新时，updates函数不更近false值
+	if err = tx.Table("fault_back").Where("id =?", faultFeedback.Id).Updates(map[string]interface{}{"file_id": 0}).Error; err != nil {
+		tx.Rollback()
+		mainlog.Error("更新故障反馈失败 %v", err)
+		ErrCheck(c, returnData, err, "更新故障反馈失败")
+		return err
 	}
 	// 新附件id不为空，则不管原有附件id是否空，直接赋值为新附件id
 	faultFeedback.UpdateTime = mod.GetCurrentTime()

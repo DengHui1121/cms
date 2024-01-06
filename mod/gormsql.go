@@ -86,41 +86,140 @@ var modelsList = []Models{
 	{Name: "均值模型", NameEn: "indexmean"},
 	{Name: "平均赋值模型", NameEn: "indexeven"},
 }
-var faultTags = []FaultTag{
-	{Num: 1, Type: "MBR", Name: "主轴轴承内圈故障", Source: false},
-	{Num: 2, Type: "MBR", Name: "主轴轴承外圈故障", Source: false},
-	{Num: 3, Type: "MBR", Name: "主轴轴承保持架故障", Source: false},
-	{Num: 4, Type: "MBR", Name: "主轴轴承滚动体故障", Source: false},
-	{Num: 7, Type: "GEN", Name: "发电机前/后轴承内圈故障", Source: false},
-	{Num: 8, Type: "GEN", Name: "发电机前/后轴承外圈故障", Source: false},
-	{Num: 9, Type: "GEN", Name: "发电机前/后轴承保持架故障", Source: false},
-	{Num: 10, Type: "GEN", Name: "发电机前/后轴承滚动体故障", Source: false},
-	{Num: 12, Type: "GBX", Name: "Ⅰ级/Ⅱ级太阳轮齿轮故障", Source: false},
-	{Num: 13, Type: "GBX", Name: "Ⅰ级/Ⅱ级行星轮齿轮故障", Source: false},
-	{Num: 14, Type: "GBX", Name: "Ⅰ级/Ⅱ级行星轮转架前轴承故障", Source: false},
-	{Num: 15, Type: "GBX", Name: "Ⅰ级/Ⅱ级行星轮转架后轴承故障", Source: false},
-	{Num: 16, Type: "GBX", Name: "低速级齿轮故障", Source: false},
-	{Num: 17, Type: "GBX", Name: "低速级驱动端轴承故障", Source: false},
-	{Num: 18, Type: "GBX", Name: "低速级非驱动端轴承故障", Source: false},
-	{Num: 19, Type: "GBX", Name: "中速级大齿轮故障", Source: false},
-	{Num: 20, Type: "GBX", Name: "中速级小齿轮故障", Source: false},
-	{Num: 21, Type: "GBX", Name: "中速级驱动端轴承故障", Source: false},
-	{Num: 22, Type: "GBX", Name: "中速级非驱动端轴承故障", Source: false},
-	{Num: 23, Type: "GBX", Name: "高速级齿轮故障", Source: false},
-	{Num: 25, Type: "GBX", Name: "高速级驱动端轴承故障", Source: false},
-	{Num: 26, Type: "GBX", Name: "高速级非驱动端轴承故障", Source: false},
-	{Num: 27, Type: "BLA", Name: "叶片撞击断裂故障", Source: false},
-	{Num: 28, Type: "BLA", Name: "叶片疲劳断裂故障", Source: false},
-	{Num: 29, Type: "BLA", Name: "叶片涡轮震荡", Source: false},
-	{Num: 30, Type: "BLA", Name: "叶片挥舞/摆振异常震荡", Source: false},
-	{Num: 31, Type: "BLA", Name: "叶片壳体损伤(叶片壳体鼓包分层、叶片粘接开裂、叶片雷击开裂)", Source: false},
-	{Num: 32, Type: "BLA", Name: "叶片结构损伤(叶片主梁损伤、腹板裂纹)", Source: false},
-	{Num: 33, Type: "BLA", Name: "叶片融冰、覆冰、气动不平衡、固有频率偏移", Source: false},
-	{Num: 34, Type: "TOW", Name: "塔筒垂直度故障", Source: false},
-	{Num: 35, Type: "TOW", Name: "塔筒晃动量趋势量异常、塔筒轴心轨迹偏差超限", Source: false},
-	{Num: 36, Type: "TOW", Name: "塔筒结构松动故障", Source: false},
-	{Num: 37, Type: "TOW", Name: "塔筒倾覆角度超限、塔筒垂直度出现偏移", Source: false},
-	{Num: 38, Type: "TOW", Name: "基础不均匀沉降故障", Source: false},
+var faultTags = []FaultTagFirst{
+	{Type: "主轴承", Name: "自动报警"},
+	{Type: "发电机", Name: "自动报警"},
+	{Type: "齿轮箱", Name: "自动报警"},
+	{Type: "叶片", Name: "自动报警"},
+	{Type: "塔筒", Name: "自动报警"},
+	{Type: "机舱", Name: "自动报警"},
+	{
+		Type: "主轴承",
+		Name: "主轴轴承故障",
+		Childrens: []FaultTagSecond{
+			{Name: "主轴轴承内圈故障", Source: false},
+			{Name: "主轴轴承外圈故障", Source: false},
+			{Name: "主轴轴承保持架故障", Source: false},
+			{Name: "主轴轴承滚动体故障", Source: false},
+		},
+	},
+	{
+		Type: "发电机",
+		Name: "发电机前轴承故障",
+		Childrens: []FaultTagSecond{
+			{Name: "发电机前轴承内圈故障", Source: false},
+			{Name: "发电机前轴承外圈故障", Source: false},
+			{Name: "发电机前轴承保持架故障", Source: false},
+			{Name: "发电机前轴承滚动体故障", Source: false},
+		},
+	},
+	{
+		Type: "发电机",
+		Name: "发电机后轴承故障",
+		Childrens: []FaultTagSecond{
+			{Name: "发电机后轴承内圈故障", Source: false},
+			{Name: "发电机后轴承外圈故障", Source: false},
+			{Name: "发电机后轴承保持架故障", Source: false},
+			{Name: "发电机后轴承滚动体故障", Source: false},
+		},
+	},
+	{
+		Type: "齿轮箱",
+		Name: "行星级故障",
+		Childrens: []FaultTagSecond{
+			{Name: "Ⅰ级太阳轮齿轮故障", Source: false},
+			{Name: "Ⅱ级太阳轮齿轮故障", Source: false},
+			{Name: "Ⅰ级行星轮齿轮故障", Source: false},
+			{Name: "Ⅱ级行星轮齿轮故障", Source: false},
+			{Name: "Ⅰ级行星轮转架前轴承故障", Source: false},
+			{Name: "Ⅱ级行星轮转架前轴承故障", Source: false},
+			{Name: "Ⅰ级行星轮转架后轴承故障", Source: false},
+			{Name: "Ⅱ级行星轮转架后轴承故障", Source: false},
+		},
+	},
+	{
+		Type: "齿轮箱",
+		Name: "低速级故障",
+		Childrens: []FaultTagSecond{
+			{Name: "低速级齿轮故障", Source: false},
+			{Name: "低速级驱动端轴承故障", Source: false},
+			{Name: "低速级非驱动端轴承故障", Source: false},
+		},
+	},
+	{
+		Type: "齿轮箱",
+		Name: "中速级故障",
+		Childrens: []FaultTagSecond{
+			{Name: "中速级大齿轮故障", Source: false},
+			{Name: "中速级小齿轮故障", Source: false},
+			{Name: "中速级驱动端轴承故障", Source: false},
+			{Name: "中速级非驱动端轴承故障", Source: false},
+		},
+	},
+	{
+		Type: "齿轮箱",
+		Name: "高速级故障",
+		Childrens: []FaultTagSecond{
+			{Name: "高速级齿轮故障", Source: false},
+			{Name: "高速级驱动端轴承故障", Source: false},
+			{Name: "高速级非驱动端轴承故障", Source: false},
+		},
+	},
+	{
+		Type: "叶片",
+		Name: "叶片断裂故障",
+		Childrens: []FaultTagSecond{
+			{Name: "叶片撞击断裂故障", Source: false},
+			{Name: "叶片疲劳断裂故障", Source: false},
+		},
+	},
+	{
+		Type: "叶片",
+		Name: "叶片异常振动故障",
+		Childrens: []FaultTagSecond{
+			{Name: "叶片涡轮震荡", Source: false},
+			{Name: "叶片挥舞异常震荡", Source: false},
+			{Name: "叶片摆振异常震荡", Source: false},
+		},
+	},
+	{
+		Type: "叶片",
+		Name: "叶片损伤故障",
+		Childrens: []FaultTagSecond{
+			{Name: "叶片壳体损伤(叶片壳体鼓包分层、叶片粘接开裂、叶片雷击开裂)", Source: false},
+			{Name: "叶片结构损伤(叶片主梁损伤、腹板裂纹)", Source: false},
+		},
+	},
+	{
+		Type: "叶片",
+		Name: "叶片运行异常",
+		Childrens: []FaultTagSecond{
+			{Name: "叶片融冰、覆冰、气动不平衡、固有频率偏移", Source: false},
+		},
+	},
+	{
+		Type: "塔筒",
+		Name: "塔筒晃度异常",
+		Childrens: []FaultTagSecond{
+			{Name: "塔筒垂直度故障", Source: false},
+			{Name: "塔筒晃动量趋势量异常、塔筒轴心轨迹偏差超限", Source: false},
+			{Name: "塔筒结构松动故障", Source: false},
+		},
+	},
+	{
+		Type: "塔筒",
+		Name: "塔筒倾角异常",
+		Childrens: []FaultTagSecond{
+			{Name: "塔筒倾覆角度超限、塔筒垂直度出现偏移", Source: false},
+		},
+	},
+	{
+		Type: "塔筒",
+		Name: "基础不均匀沉降故障",
+		Childrens: []FaultTagSecond{
+			{Name: "基础不均匀沉降故障", Source: false},
+		},
+	},
 }
 
 // ^ 根据结构体建立数据表
@@ -137,7 +236,7 @@ func TableCheck(db *gorm.DB) (err error) {
 	}
 	//基本表格迁移 数据表格
 	err = db.AutoMigrate(&Factory{}, &Windfarm{}, &Machine{}, &Part{}, &Property{}, &Point{}, &Alert{}, &MachineStd{},
-		&Algorithm{}, &AlgorithmResultA{}, &AlgorithmResultB{}, &Parsing{}, &FaultBack{}, &FaultTag{}, &File{}, &Models{},
+		&Algorithm{}, &AlgorithmResultA{}, &AlgorithmResultB{}, &Parsing{}, &FaultBack{}, &FaultTagFirst{}, &FaultTagSecond{}, &File{}, &Models{},
 	)
 	if err != nil {
 		return err
@@ -152,14 +251,16 @@ func TableCheck(db *gorm.DB) (err error) {
 		}
 	}
 
-	// 检查故障标签是否存在，不存在则插入数据库
-	for _, tag := range faultTags {
-		var existingTag FaultTag
-		result := db.Where(&FaultTag{Name: tag.Name}).FirstOrCreate(&existingTag, &tag)
-		if result.Error != nil {
-			// 处理错误
-		}
-	}
+	//// 检查故障标签是否存在，不存在则插入数据库
+	// 检查并创建一级故障标签
+	checkTag(faultTags, db)
+	//for _, tag := range faultTags {
+	//	var existingTag FaultTag
+	//	result := db.Where(&FaultTag{Name: tag.Name}).FirstOrCreate(&existingTag, &tag)
+	//	if result.Error != nil {
+	//		// 处理错误
+	//	}
+	//}
 	// db.Table("factory").Where("name=?", f.Name).FirstOrCreate(&f)
 
 	//band列改名
@@ -197,6 +298,30 @@ func TableCheck(db *gorm.DB) (err error) {
 		db.Migrator().DropTable("data")
 	}
 	return nil
+}
+
+func checkTag(first []FaultTagFirst, db *gorm.DB) {
+	for _, tag := range first {
+		var existingTag FaultTagFirst
+		result := db.Where(&FaultTagFirst{Name: tag.Name}).FirstOrCreate(&existingTag, &tag)
+		if result.Error != nil {
+			// 处理错误
+		}
+
+		// 创建或查找一级故障标签成功后，处理与其关联的二级故障标签
+		for _, childTag := range tag.Childrens {
+			var existingChildTag FaultTagSecond
+			childResult := db.Where(&FaultTagSecond{Name: childTag.Name}).FirstOrCreate(&existingChildTag, &childTag)
+			if childResult.Error != nil {
+				// 处理错误
+			}
+
+			// 如果你的数据模型需要在创建一级标签后将二级标签与其关联，可以在这里进行处理
+			existingTag.Childrens = append(existingTag.Childrens, existingChildTag)
+		}
+		// 更新一级故障标签以关联其二级故障标签
+		db.Save(&existingTag)
+	}
 }
 
 // 检查数据库是否存在，若不存在则新建。
