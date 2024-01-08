@@ -453,7 +453,6 @@ func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string
 			case "indexeven":
 				rgroup = append(rgroup, v.Indexeven)
 			}
-
 		}
 		plot.Currentplot[k].Xaxis = tgroup
 		plot.Currentplot[k].Yaxis = rgroup

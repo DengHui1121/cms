@@ -17,7 +17,7 @@ import (
 var (
 	config  = flag.String("dbconfig", "./GormConfig.toml", "数据库连接配置")
 	port    = flag.String("p", "3000", "服务端口")
-	dataurl = flag.String("dataurl", "localhost:3005", "数据服务占用端口")
+	dataurl = flag.String("dataurl", "localhost:3006", "数据服务占用端口")
 	DB      = db
 )
 
