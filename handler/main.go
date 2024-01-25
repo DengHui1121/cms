@@ -170,10 +170,9 @@ func Start() {
 	//* 导入导出相关
 	outputhandle := e.Group("api/v1/output/")
 	{
-		outputhandle.POST("xlsx", OutputXlsx)        //导出xlsx文件
-		outputhandle.POST("doc", OutputDocx)         //导出docx文件
-		outputhandle.GET("dl", DownloadOutput)       //上传文件至前端下载
-		outputhandle.GET("document", OutputDocument) //导出word文档
+		outputhandle.POST("xlsx", OutputXlsx)  //导出xlsx文件
+		outputhandle.POST("doc", OutputDocx)   //导出docx文件
+		outputhandle.GET("dl", DownloadOutput) //上传文件至前端下载
 	}
 
 	//*数据库相关
@@ -207,6 +206,10 @@ func Start() {
 		stastics.GET("windfarm/faultFeedBack/info/:id", GetFarmFaultFeedBackByIdHandler) //根据id获取风场故障反馈
 		//----------结束----------//
 
+	}
+	document := e.Group("api/v1/document")
+	{
+		document.GET("/:id", GetDocumentHandler) //获取文档列表
 	}
 
 	//* 用户相关

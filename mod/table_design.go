@@ -82,45 +82,47 @@ func (u *Factory) BeforeCreate(tx *gorm.DB) error {
 }
 
 type Windfarm struct {
-	Model_Equip       `gorm:"embedded" `
-	ID                uint      `gorm:"primarykey" json:"id,string"`
-	UUID              string    `gorm:"unique_index" json:"-"`
-	FactoryID         uint      `gorm:"-" json:"company_id,string"`
-	FactoryUUID       string    `gorm:"comment:公司uuid" json:"-"`
-	Name              string    `gorm:"not null; comment:风场名" json:"desc"`            //前端显示为风场编码
-	Desc              string    `gorm:"not null; comment:风场描述" json:"windfield_name"` //前端显示为风场名称
-	Province          string    `gorm:"not null; comment:省" json:"province"`
-	City              string    `gorm:"not null; comment:市" json:"city"`
-	District          string    `gorm:"not null; comment:地区" json:"district"`
-	Longitude         float32   `gorm:"not null; comment:经度" json:"longitude,string"`
-	Latitude          float32   `gorm:"not null; comment:纬度" json:"latitude,string"`
-	InstalledCapacity float32   `gorm:"-" json:"installedCapacity"`
-	Status            uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
-	MachineCounts     int       `gorm:"-" json:"machineCounts"`
-	Machines          []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
+	Model_Equip     `gorm:"embedded" `
+	ID              uint      `gorm:"primarykey" json:"id,string"`
+	UUID            string    `gorm:"unique_index" json:"-"`
+	FactoryID       uint      `gorm:"-" json:"company_id,string"`
+	FactoryUUID     string    `gorm:"comment:公司uuid" json:"-"`
+	Name            string    `gorm:"not null; comment:风场名" json:"desc"`            //前端显示为风场编码
+	Desc            string    `gorm:"not null; comment:风场描述" json:"windfield_name"` //前端显示为风场名称
+	Province        string    `gorm:"not null; comment:省" json:"province"`
+	City            string    `gorm:"not null; comment:市" json:"city"`
+	District        string    `gorm:"not null; comment:地区" json:"district"`
+	Longitude       float32   `gorm:"not null; comment:经度" json:"longitude,string"`
+	Latitude        float32   `gorm:"not null; comment:纬度" json:"latitude,string"`
+	InstallCapacity string    `gorm:"column:installCapacity;" json:"installCapacity"`
+	OverinsuredTime string    `gorm:"column:overinsuredTime;comment:过保时间" json:"overinsuredTime"`
+	Status          uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
+	MachineCounts   int       `gorm:"-" json:"machineCounts"`
+	Machines        []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
 	//一年内故障次数
 	TotalAlertCount int `json:"total_alert_count"  gorm:"-"`
 }
 
 type Windfarm2 struct {
-	Model_Equip       `gorm:"embedded" `
-	ID                uint      `gorm:"primarykey" json:"id,string"`
-	UUID              string    `gorm:"unique_index" json:"-"`
-	FactoryID         uint      `gorm:"column:factoryId" json:"company_id,string"`
-	FactoryUUID       string    `gorm:"comment:公司uuid" json:"-"`
-	FactoryName       string    `gorm:"column:factoryName" json:"company_name"`
-	Name              string    `gorm:"not null; comment:风场名" json:"desc"`            //前端显示为风场编码
-	Desc              string    `gorm:"not null; comment:风场描述" json:"windfield_name"` //前端显示为风场名称
-	Province          string    `gorm:"not null; comment:省" json:"province"`
-	City              string    `gorm:"not null; comment:市" json:"city"`
-	District          string    `gorm:"not null; comment:地区" json:"district"`
-	Longitude         float32   `gorm:"not null; comment:经度" json:"longitude,string"`
-	Latitude          float32   `gorm:"not null; comment:纬度" json:"latitude,string"`
-	InstalledCapacity float32   `gorm:"-" json:"installedCapacity"`
-	Status            uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
-	MachineCounts     int       `gorm:"-" json:"machineCounts"`
-	MachineType       int       `gorm:"-" json:"machineType"`
-	Machines          []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
+	Model_Equip     `gorm:"embedded" `
+	ID              uint      `gorm:"primarykey" json:"id,string"`
+	UUID            string    `gorm:"unique_index" json:"-"`
+	FactoryID       uint      `gorm:"column:factoryId" json:"company_id,string"`
+	FactoryUUID     string    `gorm:"comment:公司uuid" json:"-"`
+	FactoryName     string    `gorm:"column:factoryName" json:"company_name"`
+	Name            string    `gorm:"not null; comment:风场名" json:"desc"`            //前端显示为风场编码
+	Desc            string    `gorm:"not null; comment:风场描述" json:"windfield_name"` //前端显示为风场名称
+	Province        string    `gorm:"not null; comment:省" json:"province"`
+	City            string    `gorm:"not null; comment:市" json:"city"`
+	District        string    `gorm:"not null; comment:地区" json:"district"`
+	Longitude       float32   `gorm:"not null; comment:经度" json:"longitude,string"`
+	Latitude        float32   `gorm:"not null; comment:纬度" json:"latitude,string"`
+	InstallCapacity string    `gorm:"column:installCapacity;" json:"installCapacity"`
+	OverinsuredTime string    `gorm:"column:overinsuredTime;comment:过保时间" json:"overinsuredTime"`
+	Status          uint8     `gorm:"type:tinyint;default:0" json:"status,string"`
+	MachineCounts   int       `gorm:"-" json:"machineCounts"`
+	MachineType     string    `gorm:"-" json:"machineType"`
+	Machines        []Machine `json:"children" gorm:"foreignKey:WindfarmUUID;references:UUID"`
 	//一年内故障次数
 	TotalAlertCount int `json:"total_alert_count"  gorm:"-"`
 }
@@ -178,13 +180,14 @@ func (u *Windfarm) AfterFind(tx *gorm.DB) error {
 
 // fan_name和desc互换。fan_name:业主定义风机名，desc：数据导入的索引
 type Machine struct {
-	Model        `gorm:"embedded"`
-	ID           uint   `gorm:"primarykey" json:"id,string"`
-	UUID         string `gorm:"unique_index" json:"uuid"`
-	WindfarmID   uint   `gorm:"-" json:"windfield_id,string"`
-	WindfarmUUID string `json:"-"`
-	Name         string `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
-	Type         int    `gorm:"not null; comment:风机类型;type:char(1)" json:"model,int"`
+	Model          `gorm:"embedded"`
+	ID             uint   `gorm:"primarykey" json:"id,string"`
+	UUID           string `gorm:"unique_index" json:"uuid"`
+	WindfarmID     uint   `gorm:"-" json:"windfield_id,string"`
+	WindfarmUUID   string `json:"-"`
+	Name           string `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
+	Type           int    `gorm:"not null; comment:风机类型;type:int" json:"model,int"`
+	MachineTypeNum string `gorm:"column:machine_type_num;comment:机型编号" json:"machineTypeNum"`
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`
 	// AlertVersion    string  `json:"alert_version,omitempty"`
@@ -217,13 +220,14 @@ type Machine struct {
 	TreeAlertSet    bool    `gorm:"tree_alert_set" json:"tree_alert_bool"`
 }
 type Machine2 struct {
-	Model        `gorm:"embedded"`
-	ID           uint        `gorm:"primarykey" json:"id,string"`
-	UUID         string      `gorm:"unique_index" json:"uuid"`
-	WindfarmID   uint        `gorm:"-" json:"windfield_id,string"`
-	WindfarmUUID string      `json:"-"`
-	Name         string      `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
-	Type         interface{} `gorm:"not null; comment:风机类型;" json:"model,int"`
+	Model          `gorm:"embedded"`
+	ID             uint        `gorm:"primarykey" json:"id,string"`
+	UUID           string      `gorm:"unique_index" json:"uuid"`
+	WindfarmID     uint        `gorm:"-" json:"windfield_id,string"`
+	WindfarmUUID   string      `json:"-"`
+	Name           string      `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
+	Type           interface{} `gorm:"not null; comment:风机类型;" json:"model,int"`
+	MachineTypeNum string      `gorm:"column:machine_type_num;comment:机型编号" json:"machineTypeNum"`
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`
 	// AlertVersion    string  `json:"alert_version,omitempty"`
@@ -1121,6 +1125,54 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 							tx.Rollback()
 							return
 						}
+						// 补充报警基础信息
+						alerts := make([]Alert, 0)
+						aler := Alert{
+							DataUUID:  data.UUID,
+							PointUUID: data.PointUUID,
+							Location:  requestBody.PointName,
+							Type:      "预警算法",
+							Strategy:  algorithm.Name,
+							TimeSet:   data.TimeSet,
+							Rpm:       data.Rpm,
+							Source:    0,
+						}
+						var partType string
+						if err = db.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", data.PointUUID).Find(&partType).Error; err != nil {
+							return
+						}
+						//  开始处理频域注意和报警
+						if algorithmResultA.FScore > algorithmResultA.FLevel1 && algorithmResultA.FScore < algorithmResultA.FLevel2 {
+							// 报警表单：注意 level为 2
+							aler.Level = 2
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(2, partType, "F", aler.Location)
+							alerts = append(alerts, aler)
+						}
+						if algorithmResultA.FScore > algorithmResultA.FLevel2 {
+							// 报警表单：报警 level为 3
+							aler.Level = 3
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(3, partType, "F", aler.Location)
+							alerts = append(alerts, aler)
+						}
+						// 开始处理时域注意和报警
+						if algorithmResultA.TScore > algorithmResultA.TLevel1 && algorithmResultA.TScore < algorithmResultA.TLevel2 {
+							// 报警表单：注意 level为 2
+							aler.Level = 2
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(2, partType, "T", aler.Location)
+							alerts = append(alerts, aler)
+						}
+						if algorithmResultA.TScore > algorithmResultA.TLevel2 {
+							// 报警表单：报警 level为 3
+							aler.Level = 3
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(3, partType, "T", aler.Location)
+							alerts = append(alerts, aler)
+						}
+
+						if err = tx.Table("alert").Create(&alerts).Error; err != nil {
+							tx.Rollback()
+							err = errors.New("报警表单新增记录失败")
+							return
+						}
 					} else if responseBody.Success == "False" && responseBody.Error == "0" {
 						err = errors.New("算法运行异常")
 						tx.Rollback()
@@ -1219,6 +1271,68 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 		}
 	}
 	tx.Commit()
+	return
+}
+
+var modelName = map[string]string{
+	"R": "有效值模型",
+	"F": "频域残差模型",
+	"T": "时域残差模型",
+}
+
+// @Title GetDescAndSuggestByLevel
+// @Description 根据level，partType，alerType，location获取faultDesc和faultSuggest
+// @Param level 故障等级
+// @Param partType 部件类型
+// @Param alerType 报警类型
+// @Param location 测点名
+// @return desc 描述
+// @Return suggest 建议
+func GetDescAndSuggestByLevel(level int, partType, alerType, location string) (desc, suggest string) {
+	switch {
+
+	// 主轴承
+	case (level == 1 || level == 0) && partType == "主轴承":
+		return "振动幅值趋势平稳；无明显轴承故障频率", "建议正常运行"
+	case level == 2 && partType == "主轴承":
+		return fmt.Sprintf("%s%s振幅超限", location, modelName[alerType]), "建议注脂改善润滑"
+	case level == 3 && partType == "主轴承":
+		return fmt.Sprintf("%s%s振幅报警", location, modelName[alerType]), "建议检查主轴振动和异响情况"
+
+	// 齿轮箱
+	case (level == 1 || level == 0) && partType == "齿轮箱":
+		return "振动幅值趋势平稳；无明显轴承或齿轮故障频率", "建议正常运行"
+	case level == 2 && partType == "齿轮箱":
+		return fmt.Sprintf("%s%s振幅超限，建议巡检时关注齿轮箱振动异响情况", location, modelName[alerType]), "建议关注齿轮箱振动和异响情况"
+	case level == 3 && partType == "齿轮箱":
+		return fmt.Sprintf("%s%s振幅报警，建议及时等机检查", location, modelName[alerType]), "建议及时检查齿轮箱振动和异响情况"
+
+	// 发电机
+	case (level == 1 || level == 0) && partType == "发电机":
+		return "振动幅值趋势平稳；无明显轴承故障频率", "建议正常运行"
+	case level == 2 && partType == "发电机":
+		return fmt.Sprintf("%s%s振幅超限", location, modelName[alerType]), "建议关注发电机润滑、振动和异响情况"
+	case level == 3 && partType == "发电机":
+		return fmt.Sprintf("%s%s振幅报警", location, modelName[alerType]), "建议及时登机检查发电机振动和异响情况"
+
+	// 机舱
+	case (level == 1 || level == 0) && partType == "机舱":
+	case level == 2 && partType == "机舱":
+	case level == 3 && partType == "机舱":
+		return
+
+	// 塔筒
+	case (level == 1 || level == 0) && partType == "塔筒":
+	case level == 2 && partType == "塔筒":
+	case level == 3 && partType == "塔筒":
+		return
+
+	// 叶片
+	case (level == 1 || level == 0) && partType == "叶片":
+	case level == 2 && partType == "叶片":
+	case level == 3 && partType == "叶片":
+		return
+	}
 	return
 }
 
@@ -1619,4 +1733,142 @@ type ModelsVo struct {
 
 func (*Models) TableName() string {
 	return "model"
+}
+
+type DocumentStruct struct {
+	ProjectName   string              `json:"projectName" gorm:"column:projectName"` // 项目名称
+	StartTime     string              `json:"-" gorm:"-"`
+	EndTime       string              `json:"-" gorm:"-"`
+	MachineType   []string            `json:"machineType" gorm:"-"`                      //	风机类型,1：直驱 2：双馈
+	MachineCounts int                 `json:"machineCounts" gorm:"column:machineCounts"` // 风机数量
+	SampleTime    string              `json:"sampleTime" gorm:"column:sampleTime"`       // 采样时间
+	Parameters    []DocumentParameter `json:"parameters" gorm:"-"`                       // 参数
+	Machines      []MachineDocument   `json:"machines" gorm:"-"`                         // 风机
+	EndTimeSet    int64               `json:"-" gorm:"-"`
+	StartTimeSet  int64               `json:"-" gorm:"-"`
+	WindfarmId    int
+}
+
+type DocumentParameter struct {
+	Type      int      `json:"type" gorm:"column:type"` // 1：直驱 2：双馈
+	TypeName  string   `json:"typeName" gorm:"typeName"`
+	Count     int      `json:"count" gorm:"column:count"`         // 数量
+	Gentype   []string `json:"gentype" gorm:"column:gentype"`     // 发电机型号
+	Gbxtype   []string `json:"gbxtype" gorm:"column:gbxtype"`     // 齿轮箱型号
+	Mbrtype   []string `json:"mbrtype" gorm:"column:mbrtype"`     // 主轴承型号
+	Bladetype []string `json:"bladetype" gorm:"column:bladetype"` // 叶型
+}
+
+type MachineDocument struct {
+	Id         int64          `json:"id" gorm:"primarykey"`
+	MachineNum string         `json:"machineNum" gorm:"column:machineNum"`
+	UUID       string         `json:"machineUUID" gorm:"column:machineUUID"`
+	Parts      []PartDocument `json:"parts" gorm:"foreignKey:MachineUUID;references:UUID"`
+}
+
+type PartDocument struct {
+	UUID        string          `json:"partUUID" gorm:"column:uuid"`
+	MachineUUID string          `json:"-" gorm:"column:machine_uuid"`
+	PartName    string          `json:"partName" gorm:"column:name"`
+	Points      []PointDocument `json:"points" gorm:"foreignKey:PartUUID;references:UUID"`
+	Status      int             `json:"status" gorm:"column:status"`
+}
+
+type PointDocument struct {
+	Id                int64           `json:"id" gorm:"primarykey"`
+	UUID              string          `json:"pointUUID" gorm:"column:uuid"`
+	PointName         string          `json:"pointName" gorm:"column:name"`
+	PartUUID          string          `json:"partUUID" gorm:"column:part_uuid"`
+	Alert             AlertDocument   `json:"alerts" gorm:"foreignKey:PointUUID;references:UUID"`
+	TrendChart        MultiDatatoPlot `json:"trendChart" gorm:"-"`        // 趋势图
+	TimeFrequencyPlot DatatoPlot2     `json:"timeFrequencyPlot" gorm:"-"` // 时频图
+}
+
+// 单测点数据绘图
+type DatatoPlot2 struct {
+	Originplot SinglePlot `json:"origin"`
+	Resultplot SinglePlot `json:"result"`
+	Data       Data       `json:"data"`
+}
+
+type AlertDocument struct {
+	UUID      string `json:"alertUUID" gorm:"column:uuid"`
+	PointUUID string `json:"pointUUID" gorm:"column:point_uuid"`
+	DataUUID  string `gorm:"type:char(36);" json:"DataUUID"`
+	Location  string `json:"location"` //部件
+	Level     uint8  `gorm:"type:tinyint;comment:报警等级" json:"level"`
+	Type      string `gorm:"comment:报警类型;column:type" json:"type" `         //报警类型 故障树、频道幅值···// TODO 可自定义增加
+	Strategy  string `gorm:"comment:报警策略;column:strategy" json:"strategy" ` //策略描述 如有效值报警
+	Desc      string `gorm:"comment:报警描述;column:desc" json:"desc"`          //报警描述
+	TimeSet   int64  `gorm:"comment:报警描述;column:timeSet" json:"-"`          //格式转换 //^ 数据的时间
+	Source    uint8  `json:"source" gorm:"column:source; comment:报警来源"`     //0：自动 1：人工
+	Suggest   string `json:"suggest" gorm:"column:suggest; comment:处理建议"`   //TODO 增加处理建议 可编辑 显示在右下角
+}
+
+func (PartDocument) TableName() string {
+	return "part"
+}
+
+func (AlertDocument) TableName() string {
+	return "alert"
+}
+
+func (PointDocument) TableName() string {
+	return "point"
+}
+
+func (plot *DatatoPlot2) GetCommonDataPlot(db *gorm.DB, point *PointDocument, startTime, endTime int64) (err error) {
+	ppmwcid, _, _, err := PointtoFactory(db, point.Id)
+	if err != nil {
+		return
+	}
+	fid := ppmwcid[2]
+	dtable := "data_" + fid
+	wtable := "wave_" + fid
+	var data Data
+	sub := db.Table(dtable).Preload("Wave", func(db *gorm.DB) *gorm.DB {
+		return db.Table(wtable)
+	}).Order("time_Set DESC").Limit(1)
+	if point.Alert.DataUUID != "" {
+		if err = sub.Where("uuid = ?", point.Alert.DataUUID).Find(&data).Error; err != nil {
+			return
+		}
+	} else {
+		if err = sub.Where("point_uuid = ? and time_set >= ?  and time_set <= ? ", point.UUID, startTime, endTime).Order("time_Set DESC").Limit(1).Find(&data).Error; err != nil {
+			return
+		}
+	}
+	data.Time = time.Unix(data.TimeSet, 0).Format("2006-01-02 15:04:05")
+	freq := data.SampleFreq
+	//时频图
+	originy := make([]float32, len(data.Wave.DataFloat)/4)
+	resulty := make([]float32, len(data.Wave.SpectrumFloat)/4)
+	err = Decode(data.Wave.DataFloat, &originy)
+	if err != nil {
+		return err
+	}
+	onum := len(originy)
+	err = Decode(data.Wave.SpectrumFloat, &resulty)
+	if err != nil {
+		return err
+	}
+	rnum := len(resulty)
+
+	var ostep float64 = 1000 / float64(freq)
+	var rstep float64 = float64(freq) / float64(onum)
+
+	originx := XGenerate(ostep, onum)
+	resultx := XGenerate(rstep, rnum)
+
+	plot.Originplot.Xaxis = originx
+	plot.Originplot.Yaxis = originy
+	plot.Originplot.Xunit = "ms"
+	db.Table("machine").Where("id=?", fid).Pluck("unit", &plot.Originplot.Yunit)
+
+	plot.Resultplot.Xaxis = resultx
+	plot.Resultplot.Yaxis = resulty
+	plot.Resultplot.Xunit = "hz"
+	db.Table("machine").Where("id=?", fid).Pluck("unit", &plot.Resultplot.Yunit)
+	plot.Data = data
+	return
 }

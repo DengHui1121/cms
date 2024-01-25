@@ -301,9 +301,17 @@ func FindTree(c echo.Context) error {
 		var ff mod.Windfarm2
 		err = db.Table("windfarm").Select("windfarm.*, factory.name factoryName, factory.id factoryId").Omit("created_at", "updated_at").Joins("LEFT JOIN factory ON windfarm.factory_uuid = factory.uuid").Preload("Machines").
 			Last(&ff, id).Error
-		err = db.Table("machine").Select("SUM(machine.capacity) as installed_capacity").Where("machine.windfarm_uuid =?", ff.UUID).Find(&ff.InstalledCapacity).Error
 		err = db.Table("machine").Select("COUNT(machine.id)").Where("machine.windfarm_uuid = ?", ff.UUID).Find(&ff.MachineCounts).Error
-		err = db.Table("machine").Select("COUNT(DISTINCT  machine.type)").Where("machine.windfarm_uuid = ?", ff.UUID).Find(&ff.MachineType).Error
+		machineTypes := make([]string, 0)
+		err = db.Table("machine").Select("DISTINCT  machine.machine_type_num").Where("machine.windfarm_uuid = ?",
+			ff.UUID).Find(&machineTypes).Error
+		for _, machineType := range machineTypes {
+			ff.MachineType += machineType + "、"
+		}
+		if ff.MachineType != "" {
+			ff.MachineType = strings.TrimRight(ff.MachineType, "、")
+
+		}
 		var Longitudestr, Latitudestr string
 		if ff.Longitude == float32(int32(ff.Longitude)) {
 			if ff.Longitude == 0 {
@@ -848,6 +856,17 @@ func FileUpload(c echo.Context) error {
 	return nil
 }
 
+type alertDesc struct {
+	Suggest string
+	Desc    string
+}
+
+var alertDescs = map[string]alertDesc{
+	"主轴承": {Suggest: "建议检查主轴振动和异响情况"},
+	"齿轮箱": {Suggest: "建议及时检查齿轮箱振动和异响情况"},
+	"发电机": {Suggest: "建议及时登机检查发电机振动和异响情况"},
+}
+
 // * api/v1/data 导入/更新数据
 func CheckMPointData(ipport string) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -1008,6 +1027,54 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 							ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时 ")
 							return err
 						}
+						// 补充报警基础信息
+						alerts := make([]mod.Alert, 0)
+						aler := mod.Alert{
+							DataUUID:  pdata.UUID,
+							PointUUID: pdata.PointUUID,
+							Location:  postBody.PointName,
+							Type:      "预警算法",
+							Strategy:  algorithm.Name,
+							TimeSet:   pdata.TimeSet,
+							Rpm:       pdata.Rpm,
+							Source:    0,
+						}
+						var partType string
+						if err = db.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", pdata.PointUUID).Find(&partType).Error; err != nil {
+							return err
+						}
+						//  开始处理频域注意和报警
+						if algorithmResultA.FScore > algorithmResultA.FLevel1 && algorithmResultA.FScore < algorithmResultA.FLevel2 {
+							// 报警表单：注意 level为 2
+							aler.Level = 2
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(2, partType, "F", aler.Location)
+							alerts = append(alerts, aler)
+						}
+						if algorithmResultA.FScore > algorithmResultA.FLevel2 {
+							// 报警表单：报警 level为 3
+							aler.Level = 3
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(3, partType, "F", aler.Location)
+							alerts = append(alerts, aler)
+						}
+						// 开始处理时域注意和报警
+						if algorithmResultA.TScore > algorithmResultA.TLevel1 && algorithmResultA.TScore < algorithmResultA.TLevel2 {
+							// 报警表单：注意 level为 2
+							aler.Level = 2
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(2, partType, "T", aler.Location)
+							alerts = append(alerts, aler)
+						}
+						if algorithmResultA.TScore > algorithmResultA.TLevel2 {
+							// 报警表单：报警 level为 3
+							aler.Level = 3
+							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(3, partType, "T", aler.Location)
+							alerts = append(alerts, aler)
+						}
+
+						if err = tx.Table("alert").Create(&alerts).Error; err != nil {
+							tx.Rollback()
+							err = errors.New("报警表单新增记录失败")
+							ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时 ")
+						}
 					} else if responseBody.Success == "False" && responseBody.Error == "0" {
 						tx.Rollback()
 						err = errors.New("算法客户端运行异常")
@@ -1060,6 +1127,18 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 							err = errors.New("故障诊断结果插入失败")
 							return err
 						}
+						// 查询出测点所属部件,根据部件选择合适的报警处理建议，以及拼接故障描述
+						type pointInfos struct {
+							PointName string `gorm:"column:pointName"`
+							PartType  string `gorm:"column:partType"`
+						}
+						var pointInfo pointInfos
+						if err = tx.Table("point").Joins("left join part on part.uuid = point.part_uuid").Select("part.type partType, point.name pointName").Find(&pointInfo).Error; err != nil {
+							tx.Rollback()
+							err = errors.New("查询出测点所属部件失败")
+							return err
+						}
+
 						if responseBody.Data.FaultName != "" {
 							//插入报警表
 							aler := mod.Alert{
@@ -1068,9 +1147,10 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 								Location:  postBody.PointName,
 								Type:      "预警算法",
 								Strategy:  algorithm.Name,
-								Desc:      responseBody.Data.FaultName,
+								Desc:      fmt.Sprintf("%s", pointInfo.PointName),
 								TimeSet:   pdata.TimeSet,
 								Rpm:       pdata.Rpm,
+								Suggest:   alertDescs[pointInfo.PartType].Suggest,
 								Source:    0,
 							}
 							tag := mod.CheckTagExist(tx, pdata.PointUUID, responseBody.Data.FaultName)
@@ -1119,6 +1199,68 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 		ErrNil(c, returnData, false, "导入数据成功。")
 		return nil
 	}
+}
+
+var modelName = map[string]string{
+	"R": "有效值模型",
+	"F": "频域残差模型",
+	"T": "时域残差模型",
+}
+
+// @Title GetDescAndSuggestByLevel
+// @Description 根据level，partType，alerType，location获取faultDesc和faultSuggest
+// @Param level 故障等级
+// @Param partType 部件类型
+// @Param alerType 报警类型
+// @Param location 测点名
+// @Return desc 描述
+// @Return suggest 建议
+func GetDescAndSuggestByLevel(level int, partType, alerType, location string) (desc, suggest string) {
+	switch {
+
+	// 主轴承
+	case (level == 1 || level == 0) && partType == "主轴承":
+		return "振动幅值趋势平稳；无明显轴承故障频率", "建议正常运行"
+	case level == 2 && partType == "主轴承":
+		return fmt.Sprintf("%s%s振幅超限", location, modelName[alerType]), "建议注脂改善润滑"
+	case level == 3 && partType == "主轴承":
+		return fmt.Sprintf("%s%s振幅报警", location, modelName[alerType]), "建议检查主轴振动和异响情况"
+
+	// 齿轮箱
+	case (level == 1 || level == 0) && partType == "齿轮箱":
+		return "振动幅值趋势平稳；无明显轴承或齿轮故障频率", "建议正常运行"
+	case level == 2 && partType == "齿轮箱":
+		return fmt.Sprintf("%s%s振幅超限，建议巡检时关注齿轮箱振动异响情况", location, modelName[alerType]), "建议关注齿轮箱振动和异响情况"
+	case level == 3 && partType == "齿轮箱":
+		return fmt.Sprintf("%s%s振幅报警，建议及时等机检查", location, modelName[alerType]), "建议及时检查齿轮箱振动和异响情况"
+
+	// 发电机
+	case (level == 1 || level == 0) && partType == "发电机":
+		return "振动幅值趋势平稳；无明显轴承故障频率", "建议正常运行"
+	case level == 2 && partType == "发电机":
+		return fmt.Sprintf("%s%s振幅超限", location, modelName[alerType]), "建议关注发电机润滑、振动和异响情况"
+	case level == 3 && partType == "发电机":
+		return fmt.Sprintf("%s%s振幅报警", location, modelName[alerType]), "建议及时登机检查发电机振动和异响情况"
+
+	// 机舱
+	case (level == 1 || level == 0) && partType == "机舱":
+	case level == 2 && partType == "机舱":
+	case level == 3 && partType == "机舱":
+		return
+
+	// 塔筒
+	case (level == 1 || level == 0) && partType == "塔筒":
+	case level == 2 && partType == "塔筒":
+	case level == 3 && partType == "塔筒":
+		return
+
+	// 叶片
+	case (level == 1 || level == 0) && partType == "叶片":
+	case level == 2 && partType == "叶片":
+	case level == 3 && partType == "叶片":
+		return
+	}
+	return
 }
 
 // 覆盖数据上传接口
@@ -3516,10 +3658,181 @@ func UpdateDataLabel(c echo.Context) (err error) {
 	return
 }
 
-// 新增更具报告模板生成报告
-func OutputDocument(c echo.Context) (err error) {
+// 获取文档信息
+func GetDocumentHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
+	res := mod.DocumentStruct{
+		StartTime: c.QueryParam("startTime"),
+		EndTime:   c.QueryParam("endTime"),
+	}
+	res.StartTimeSet, _ = mod.StrtoTime("2006-01-02", res.StartTime)
+	res.EndTimeSet, _ = mod.StrtoTime("2006-01-02", res.EndTime)
+	idStr := c.Param("id")
+	res.WindfarmId, err = strconv.Atoi(idStr)
+	if err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, "id string转int失败")
+		return
+	}
+	res.SampleTime = res.StartTime + "~" + res.EndTime
+	// 1、 首先查询风场、风机数量
+	if err = getWindfarmAndMachineCount(&res); err != nil {
+		mainlog.Error("获取风场、风机数量失败 %v", err)
+		ErrCheck(c, returnData, err, "获取风场、风机数量失败")
+		return
+	}
 
-	ErrNil(c, returnData, nil, "报告生成成功")
+	// 2、获取机组信息
+	if err = getMachineTypes(&res); err != nil {
+		mainlog.Error("获取机组信息 %v", err)
+		ErrCheck(c, returnData, err, "获取机组信息失败")
+		return
+	}
+
+	// 3、获取风机部件信息 主轴承、齿轮箱、发电机、叶片
+	if err = getMachineComponentsInfo(&res); err != nil {
+		mainlog.Error("获取风机部件信息失败 %v", err)
+		ErrCheck(c, returnData, err, "获取风机部件信息失败")
+		return
+	}
+
+	// 4、获取风机、部件、测点、报警详细信息
+	if err = getMachineComponentsDetails(&res); err != nil {
+		mainlog.Error("获取风机部件报警详细信息失败 %v", err)
+		ErrCheck(c, returnData, err, "获取风机报警详细信息失败")
+		return
+	}
+
+	ErrNil(c, returnData, res, "报告获取成功")
+	return
+}
+
+// 首先查询风场、风机数量
+func getWindfarmAndMachineCount(res *mod.DocumentStruct) error {
+
+	return db.Table("windfarm").
+		Joins("LEFT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+		Where("windfarm.id = ?", res.WindfarmId).
+		Select("windfarm.name AS projectName, COUNT(machine.id) AS machineCounts").
+		Find(res).Error
+}
+
+// 获取机组信息
+func getMachineTypes(res *mod.DocumentStruct) error {
+	var types []int
+	typeMap := map[int]string{
+		1: "直驱",
+		2: "双馈",
+	}
+	if err := db.Table("windfarm").
+		Joins("LEFT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+		Where("windfarm.id = ?", res.WindfarmId).
+		Select("machine.`type`").
+		Group("machine.`type`").
+		Find(&types).Error; err != nil {
+		mainlog.Error("获取风机类型失败 %v", err)
+		return err
+	}
+
+	for _, v := range types {
+		res.MachineType = append(res.MachineType, typeMap[v])
+		res.Parameters = append(res.Parameters, mod.DocumentParameter{Type: v, TypeName: typeMap[v]})
+	}
+
+	return nil
+}
+
+// 获取风机部件信息 主轴承、齿轮箱、发电机、叶片
+func getMachineComponentsInfo(res *mod.DocumentStruct) (err error) {
+	for index, parameter := range res.Parameters {
+		// 获取风机部件信息 主轴承、齿轮箱、发电机、叶片
+
+		err = db.Table("windfarm").
+			Joins("LEFT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+			Where("windfarm.id = ?", res.WindfarmId).
+			Where("machine.`type` = ?", parameter.Type).Select("COUNT(machine.id)").
+			Find(&res.Parameters[index].Count).Error
+
+		err = db.Table("windfarm").
+			Joins("LEFT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+			Where("windfarm.id = ?", res.WindfarmId).
+			Where("machine.`type` = ?", parameter.Type).Select("DISTINCT machine.mbrtype").Where("machine.mbrtype != ''").
+			Find(&res.Parameters[index].Mbrtype).Error
+		err = db.Table("windfarm").
+			Joins("LEFT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+			Where("windfarm.id = ?", res.WindfarmId).
+			Where("machine.`type` = ?", parameter.Type).Select("DISTINCT machine.gbxtype").Where("machine.gbxtype != ''").
+			Find(&res.Parameters[index].Gbxtype).Error
+		err = db.Table("windfarm").
+			Joins("LEFT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+			Where("windfarm.id = ?", res.WindfarmId).
+			Where("machine.`type` = ?", parameter.Type).Select("DISTINCT machine.gentype").Where("machine.gentype != ''").
+			Find(&res.Parameters[index].Gentype).Error
+		err = db.Table("windfarm").
+			Joins("LEFT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+			Where("windfarm.id = ?", res.WindfarmId).
+			Where("machine.`type` = ?", parameter.Type).Select("DISTINCT machine.bladetype").Where("machine.bladetype != ''").
+			Find(&res.Parameters[index].Bladetype).Error
+	}
+	return
+}
+
+// 获取风机、部件、测点、报警详细信息
+func getMachineComponentsDetails(res *mod.DocumentStruct) (err error) {
+	//查询风机下部件，测点
+	if err = db.Model(&mod.Machine{}).
+		Joins("LEFT JOIN windfarm ON machine.windfarm_uuid = windfarm.uuid").
+		Select("machine.id id, machine.name machineNum,machine.uuid machineUUID").
+		Where("windfarm.id = ?", res.WindfarmId).Preload("Parts").Preload("Parts.Points").
+		Find(&res.Machines).Error; err != nil {
+		return
+	}
+
+	// 查询风机下测点的报警信息
+	for _, machine := range res.Machines {
+		for _, part := range machine.Parts {
+			for k, point := range part.Points {
+				// 根据风场测点查询最新的一条报警信息
+				if err = db.Table("alert").Where("point_uuid = ? AND time_set BETWEEN ? AND ?", point.UUID, res.StartTimeSet, res.EndTimeSet).Order("id DESC").Limit(1).Find(&part.Points[k].Alert).Error; err != nil {
+					return
+				}
+				// 部件正常时，查询时间范围内的有效值数据，
+				if part.Points[k].Alert.Level != 2 && part.Points[k].Alert.Level != 3 {
+
+					var partType string
+					if err = db.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", point.UUID).Find(&partType).Error; err != nil {
+						return err
+					}
+
+					// 1、找到测点相关信息，查询趋势图
+					db.Table("point").Select("id point_id, name point_name").Where("uuid = ?", point.UUID).Scan(&part.Points[k].TrendChart.Currentplot)
+					if err = part.Points[k].TrendChart.FanStaticPlot2(db, "rmsvalue", machine.Id, res.StartTimeSet, res.EndTimeSet); err != nil {
+						return
+					}
+
+					// 2. 没有报警则查询时间范围内最新一条数据, 对应的原始数据、频域图
+					if err = part.Points[k].TimeFrequencyPlot.GetCommonDataPlot(db, &part.Points[k], res.StartTimeSet, res.EndTimeSet); err != nil {
+						return
+					}
+					// 3、无报警，根据部件类型、测点名、返回正常情况的描述和处理建议
+					part.Points[k].Alert.Desc, part.Points[k].Alert.Suggest = GetDescAndSuggestByLevel(int(part.Points[k].Alert.Level), partType, "", part.Points[k].PointName)
+				} else {
+					// 存在报警
+					// 1、查询趋势图
+					db.Table("point").Select("id point_id, name point_name").Where("uuid = ?", point.UUID).Scan(&part.Points[k].TrendChart.Currentplot)
+					if err = part.Points[k].TrendChart.FanStaticPlot2(db, "rmsvalue", machine.Id, res.StartTimeSet, res.EndTimeSet); err != nil {
+						return
+					}
+					// 2、查询报警对应的数据记录，查找对应的原始数据、频域图
+					if err = part.Points[k].TimeFrequencyPlot.GetCommonDataPlot(db, &part.Points[k], res.StartTimeSet, res.EndTimeSet); err != nil {
+						return
+					}
+					// 报警条目直接读取，报警的建议、故障说明
+				}
+
+			}
+		}
+	}
+
 	return
 }

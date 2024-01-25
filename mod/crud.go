@@ -225,7 +225,8 @@ func MachineUpdate(db *gorm.DB, p Machine) error {
 		}
 		db.Table("machine").
 			Select("name", "type", "fan_version", "tree_version", "desc", "built_time", "band_alert_set",
-				"tree_alert_set", "unit", "genfactory", "gentype", "gbxfactory", "gbxtype", "mbrfactory", "mbrtype", "bladefactory", "bladetype").
+				"tree_alert_set", "unit", "genfactory", "gentype", "gbxfactory", "gbxtype", "mbrfactory", "mbrtype",
+				"bladefactory", "bladetype", "machine_type_num", "capacity", "overinsuredTime").
 			Clauses(clause.Locking{Strength: "UPDATE"}).Updates(&p)
 		return nil
 	})
@@ -409,6 +410,9 @@ func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string) (err error) {
 	// monthStart := time.Now().Format("2006-01")
 	// monthEnd := time.Now().AddDate(0, -2, 0).Format("2006-01")
+	if ctype == "" {
+		ctype = "rmsvalue"
+	}
 	for k, v := range plot.Currentplot {
 		var tempd []Data
 		var point Point
@@ -427,7 +431,7 @@ func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string
 		var rgroup []float32 = make([]float32, 0)
 		var tgroup []string = make([]string, 0)
 		for _, v := range tempd {
-			tgroup = append(tgroup, TimetoStr(v.TimeSet).Format("2006-01-02 15:04:05"))
+			tgroup = append(tgroup, TimetoStr(v.TimeSet).Format("2006-01-02"))
 			idgroup = append(idgroup, fmt.Sprint(v.ID))
 			switch ctype {
 			case "rmsvalue":
@@ -453,6 +457,36 @@ func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string
 			case "indexeven":
 				rgroup = append(rgroup, v.Indexeven)
 			}
+		}
+		plot.Currentplot[k].Xaxis = tgroup
+		plot.Currentplot[k].Yaxis = rgroup
+		plot.Currentplot[k].IDaxis = idgroup
+	}
+	return nil
+}
+
+// 报告导出画图函数
+func (plot *MultiDatatoPlot) FanStaticPlot2(db *gorm.DB, ctype string, fid, startTime, endTime int64) (err error) {
+	for k, v := range plot.Currentplot {
+		var tempd []Data
+		var point Point
+		db.Table("point").Where("id=?", v.PointId).Select("uuid").First(&point)
+		var idgroup []string
+		//* 最近三个月的数据
+		sub := db.Table(fmt.Sprintf("data_%d", fid)).
+			Where("point_uuid = ? AND time_set BETWEEN ? AND ?", point.UUID, startTime, endTime).
+			Order("time_set desc")
+		err = db.Table("(?) as d", sub).Order("time_set").Select("id", "time_set", ctype).Find(&tempd).Error
+		if err != nil {
+			return err
+		}
+		idgroup = make([]string, 0)
+		var rgroup []float32 = make([]float32, 0)
+		var tgroup []string = make([]string, 0)
+		for _, v := range tempd {
+			tgroup = append(tgroup, TimetoStr(v.TimeSet).Format("2006-01-02"))
+			idgroup = append(idgroup, fmt.Sprint(v.ID))
+			rgroup = append(rgroup, v.Rmsvalue)
 		}
 		plot.Currentplot[k].Xaxis = tgroup
 		plot.Currentplot[k].Yaxis = rgroup
