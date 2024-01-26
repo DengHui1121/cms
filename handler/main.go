@@ -152,7 +152,8 @@ func Start() {
 		cmsbasic.PUT("parsing", UpdateParsingHandler)        //更新解析方式
 		cmsbasic.DELETE("parsing/:id", DeleteParsingHandler) //删除解析方式
 
-		cmsbasic.GET("faultTag", GetFaultTagHandler)           //获取故障标签
+		cmsbasic.GET("faultTag", GetFaultTagHandler) //获取故障标签
+		cmsbasic.GET("faultTag/:part", GetFaultTagByTypeHandler)
 		cmsbasic.PUT("faultTag", UpdateFaultTagHandler)        //更新故障标签
 		cmsbasic.POST("faultTag", AddFaultTagHandler)          //新增故障标签
 		cmsbasic.DELETE("faultTag/:id", DeleteFaultTagHandler) //删除故障标签

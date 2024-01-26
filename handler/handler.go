@@ -2659,7 +2659,11 @@ func GetFarmFaultFeedBackHandler(c echo.Context) (err error) {
 		condition = condition + fmt.Sprintf(" AND level = %d", level)
 	}
 	if tagStr != "" {
-		condition = condition + fmt.Sprintf(" AND `desc` LIKE '%%%s%%'", tagStr)
+		conditions := []string{}
+		for _, s := range strings.Split(tagStr, ",") {
+			conditions = append(conditions, fmt.Sprintf("`desc` LIKE '%%%s%%'", s))
+		}
+		condition = condition + " AND (" + strings.Join(conditions, " OR ") + ")"
 	}
 
 	if startTime != "" && endTime != "" {
@@ -2997,46 +3001,23 @@ func UpdateParsingHandler(c echo.Context) (err error) {
 	return
 }
 
+func GetFaultTagByTypeHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var res []mod.FaultTagFirst
+	part := c.Param("part")
+	if err = db.Table("fault_tag_first").Where("type = ? AND is_del = false",
+		part).Preload("Childrens").Find(&res).Error; err != nil {
+		mainlog.Error("获取故障标签失败 %v", err)
+		ErrCheck(c, returnData, err, "获取故障标签失败")
+		return err
+	}
+	ErrNil(c, returnData, res, "获取故障标签成功")
+	return
+}
+
 // 获取故障标签
 func GetFaultTagHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
-	//var res mod.FaultTagVo
-	//pointIdStr := c.QueryParam("pointId")
-	//typeStr := c.QueryParam("type") // 用于筛选故障标签。
-	//condition := "1 = 1 AND is_del = false"
-	//// 当pointIdStr 不为空时，查询测点所属上级的测点类型，然后查询该类型下的故障标签
-	//if pointIdStr != "" {
-	//	pointId, err := strconv.Atoi(pointIdStr)
-	//	if err != nil {
-	//		mainlog.Error("id string转int失败 %v", err)
-	//		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
-	//		return err
-	//	}
-	//	var partType string
-	//	if err = db.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.id =?", pointId).Find(&partType).Error; err != nil {
-	//		mainlog.Error("获取故障标签失败 %v", err)
-	//		ErrCheck(c, returnData, err, "获取故障标签失败")
-	//		return err
-	//	}
-	//	condition = condition + fmt.Sprintf(" AND `type` = '%s'", partType)
-	//}
-	//if typeStr == "faultback" {
-	//	condition = condition + fmt.Sprintf(" AND `source` = %v", false)
-	//}
-	//if typeStr == "alertdesc" {
-	//	condition = condition + fmt.Sprintf(" AND `source` = %v", true)
-	//}
-	//if err = db.Model(mod.FaultTagSecond{}).Where(condition).Order("num ASC").Count(&res.Total).Error; err != nil {
-	//	mainlog.Error("获取故障标签失败 %v", err)
-	//	ErrCheck(c, returnData, err, "获取故障标签失败")
-	//	return err
-	//}
-	//
-	//if err = db.Model(mod.FaultTagSecond{}).Where(condition).Order("num ASC").Find(&res.List).Error; err != nil {
-	//	mainlog.Error("获取故障标签失败 %v", err)
-	//	ErrCheck(c, returnData, err, "获取故障标签失败")
-	//	return err
-	//}
 	var res []mod.FaultTagFirst
 	part := c.QueryParam("part_uuid")
 	condition := "1 = 1 AND is_del = false"
