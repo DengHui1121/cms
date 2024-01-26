@@ -186,7 +186,7 @@ type Machine struct {
 	WindfarmID     uint   `gorm:"-" json:"windfield_id,string"`
 	WindfarmUUID   string `json:"-"`
 	Name           string `gorm:"not null; comment:风机名" json:"desc" toml:"name"`
-	Type           int    `gorm:"not null; comment:风机类型;type:int" json:"model,int"`
+	Type           int    `gorm:"comment:风机类型;type:char(1);" json:"model,int"`
 	MachineTypeNum string `gorm:"column:machine_type_num;comment:机型编号" json:"machineTypeNum"`
 	// PointVersion    string  `json:"point_version,omitempty"`
 	// PropertyVersion string  `json:"property_version,omitempty"`

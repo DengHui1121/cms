@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -302,15 +303,19 @@ func FindTree(c echo.Context) error {
 		err = db.Table("windfarm").Select("windfarm.*, factory.name factoryName, factory.id factoryId").Omit("created_at", "updated_at").Joins("LEFT JOIN factory ON windfarm.factory_uuid = factory.uuid").Preload("Machines").
 			Last(&ff, id).Error
 		err = db.Table("machine").Select("COUNT(machine.id)").Where("machine.windfarm_uuid = ?", ff.UUID).Find(&ff.MachineCounts).Error
-		machineTypes := make([]string, 0)
-		err = db.Table("machine").Select("DISTINCT  machine.machine_type_num").Where("machine.windfarm_uuid = ?",
+		var machineTypes []sql.NullString
+		err = db.Table("machine").Select("DISTINCT machine.machine_type_num").Where("machine.windfarm_uuid = ?",
 			ff.UUID).Find(&machineTypes).Error
 		for _, machineType := range machineTypes {
-			ff.MachineType += machineType + "、"
+			if machineType.Valid {
+				ff.MachineType += machineType.String + "、"
+			} else {
+				ff.MachineType += ""
+			}
+
 		}
 		if ff.MachineType != "" {
 			ff.MachineType = strings.TrimRight(ff.MachineType, "、")
-
 		}
 		var Longitudestr, Latitudestr string
 		if ff.Longitude == float32(int32(ff.Longitude)) {
