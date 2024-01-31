@@ -142,6 +142,7 @@ func CheckTagExist(tx *gorm.DB, pointUUID, desc string) (tag FaultTagSecond) {
 }
 
 func IntArrayToString(db *gorm.DB, arr []int) string {
+	arr = removeDuplicates(arr)
 	strArr := make([]string, len(arr))
 
 	for i, v := range arr {
@@ -151,5 +152,19 @@ func IntArrayToString(db *gorm.DB, arr []int) string {
 		strArr[i] = fmt.Sprintf("%d-%d", tag.FaultTagFirstID, v)
 	}
 	result := strings.Join(strArr, ",")
+	return result
+}
+
+func removeDuplicates(nums []int) []int {
+	uniqueMap := make(map[int]bool)
+	var result []int
+
+	for _, num := range nums {
+		if !uniqueMap[num] {
+			uniqueMap[num] = true
+			result = append(result, num)
+		}
+	}
+
 	return result
 }

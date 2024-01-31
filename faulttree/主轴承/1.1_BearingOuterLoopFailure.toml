@@ -11,12 +11,12 @@ name="滚动轴承外圈故障第一阶段"
 [[stages.calculate]]
 value1 =1.0
 goal1 = "rms_band(10,2000)"
-lower = -inf
+lower = -3
 upper= 7.5
 [[stages.calculate]]
 value1 =1.0
 goal1 = "indexkur"
-lower = -inf
+lower = -3
 upper= 1.0
 #故障树的故障描述
 desc = "故障第一阶段"
@@ -44,12 +44,12 @@ name="滚动轴承外圈故障第三阶段"
 value1 =1.0
 goal1 = "rms_band(10,2000)"
 lower = 12.0
-upper= +inf
+upper= 3
 [[stages.calculate]]
 value1 =1.0
 goal1 = "indexkur"
 lower = 2.4
-upper= +inf
+upper= 3
 #故障树的故障描述
 desc = "故障第三阶段"
 suggest = "检修"

@@ -101,7 +101,7 @@ func TreeAlert(db *gorm.DB, pdata Data, ipport string) (uint8, error, []int) {
 		if err != nil {
 			return 0, err, nil
 		}
-		if basict.Type != partname {
+		if basict.Type != parttype {
 			continue
 		}
 		file, err = os.Open(filemap[k])
