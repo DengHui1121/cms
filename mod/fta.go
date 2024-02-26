@@ -618,7 +618,7 @@ func TreeAlertSet(t *alert.Tree, db *gorm.DB, did string, pid string, filename s
 		//code faulttype 默认赋值“1”，1
 		ta.Code = "1"
 		ta.Faulttype = 1
-
+		ta.Confirm = 1
 		//阶段判断
 		if len(t.Stages) > 0 {
 			for k := range t.Stages {
@@ -732,6 +732,9 @@ func TreeAlertDetail(db *gorm.DB, id string) (t alert.TreeAlert, err error) {
 	err = db.Table("alert").Preload("TreeAlert").Where("id=?", id).First(&a).Error
 	if err != nil {
 		return
+	}
+	if a.TreeAlert.TreeJson == nil {
+		a.TreeAlert.TreeJson = []byte("{}")
 	}
 	err = json.Unmarshal(a.TreeAlert.TreeJson, &t.Tree)
 	if err != nil {

@@ -658,15 +658,15 @@ type Alert struct {
 	BandAlert        alert.BandAlert   `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
 	TreeAlert        alert.TreeAlert   `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
 	ManualAlert      alert.ManualAlert `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
-	Code             string            `gorm:"comment:报警类型代码" json:"code"`                                                 //预留 告警类型代码
-	Faulttype        int               `json:"faulttype" gorm:"column:faulttype; comment:故障标识"`                            //预留 故障标识
-	Source           uint8             `json:"source" gorm:"column:source; comment:报警来源"`                                  //0：自动 1：人工
-	Confirm          int               `json:"confirm" gorm:"column:confirm; default:1; comment:报警确认,0:无故障 1:与报警一致 2:待观察"` //TODO 0:无故障 1:与报警一致 2:待观察
-	Suggest          string            `json:"suggest" gorm:"column:suggest; comment:处理建议"`                                //TODO 增加处理建议 可编辑 显示在右下角
-	CheckTime        string            `json:"checkTime" gorm:"column:check_time; comment:检查时间"`                           //TODO 增加处理时间
-	Handle           uint8             `gorm:"type:tinyint" json:"handle"`                                                 //0为红色表示未处理，1为绿色表示已处理。
-	Broadcast        uint8             `gorm:"type:tinyint" json:"broadcast"`                                              //是否通知给了前端 0/1
-	BroadcastMessage string            `gorm:"-" json:"message"`                                                           //是否通知给了前端 0/1
+	Code             string            `gorm:"comment:报警类型代码" json:"code"`                                      //预留 告警类型代码
+	Faulttype        int               `json:"faulttype" gorm:"column:faulttype; comment:故障标识"`                 //预留 故障标识
+	Source           uint8             `json:"source" gorm:"column:source; comment:报警来源"`                       //0：自动 1：人工
+	Confirm          int               `json:"confirm" gorm:"column:confirm; comment:报警确认,0:无故障 1:与报警一致 2:待观察"` //TODO 0:无故障 1:与报警一致 2:待观察
+	Suggest          string            `json:"suggest" gorm:"column:suggest; comment:处理建议"`                     //TODO 增加处理建议 可编辑 显示在右下角
+	CheckTime        string            `json:"checkTime" gorm:"column:check_time; comment:检查时间"`                //TODO 增加处理时间
+	Handle           uint8             `gorm:"type:tinyint" json:"handle"`                                      //0为红色表示未处理，1为绿色表示已处理。
+	Broadcast        uint8             `gorm:"type:tinyint" json:"broadcast"`                                   //是否通知给了前端 0/1
+	BroadcastMessage string            `gorm:"-" json:"message"`                                                //是否通知给了前端 0/1
 }
 
 func (Alert) TableName() string {
@@ -1135,6 +1135,7 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 							Strategy:  algorithm.Name,
 							TimeSet:   data.TimeSet,
 							Rpm:       data.Rpm,
+							Confirm:   1,
 							Source:    0,
 						}
 						var partType string
@@ -1233,6 +1234,7 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 							TimeSet:   data.TimeSet,
 							Rpm:       data.Rpm,
 							Source:    2,
+							Confirm:   1,
 							Suggest:   "检修",
 						}
 						tag := CheckTagExist(tx, point.UUID, responseBody.Data.FaultName)

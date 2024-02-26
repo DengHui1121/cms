@@ -59,6 +59,7 @@ func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (leve
 							a.Type = "频带幅值"
 							a.Level = v.Floor.Level
 							a.Desc = v.Floor.Desc
+							a.Confirm = 1
 							tagIds = append(tagIds, CheckTagExist(tx, pdata.PointUUID, a.Desc).Id)
 							a.Suggest = v.Floor.Suggest
 							b.Limit = v.FloorStd
@@ -99,6 +100,7 @@ func BandAlertSet_2(db *gorm.DB, pdata Data, ppmwcid []string, fid string) (leve
 							a.Strategy = v.Property
 							a.Type = "频带幅值"
 							a.Level = v.Floor.Level
+							a.Confirm = 1
 							a.Desc = v.Floor.Desc
 							tagIds = append(tagIds, CheckTagExist(tx, pdata.PointUUID, a.Desc).Id)
 							a.Suggest = v.Floor.Suggest

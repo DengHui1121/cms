@@ -654,7 +654,8 @@ func UpdateAlert(c echo.Context) error {
 	var m mod.Alert
 	c.Bind(&m)
 	err = db.Table("alert").Where("id = ?", m.ID).
-		Select("level", "strategy", "desc", "source", "suggest", "handle").Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("level", "strategy", "desc", "source", "suggest", "handle",
+			"confirm").Clauses(clause.Locking{Strength: "UPDATE"}).
 		Updates(m).Error
 	if err != nil {
 		ErrCheck(c, returnData, err, "更新失败")
@@ -795,7 +796,6 @@ func InsertAlert(c echo.Context) error {
 	if m.Desc == "" {
 		m.Desc = m.Type
 	}
-	m.Confirm = 1
 	ppmwfid, _, _, err := mod.PointtoFactory(db, m.PointID)
 	if err != nil {
 		ErrCheck(c, returnData, err, "创建失败")
@@ -1042,6 +1042,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 							Strategy:  algorithm.Name,
 							TimeSet:   pdata.TimeSet,
 							Rpm:       pdata.Rpm,
+							Confirm:   1,
 							Source:    0,
 						}
 						var partType string
@@ -1156,6 +1157,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 								TimeSet:   pdata.TimeSet,
 								Rpm:       pdata.Rpm,
 								Suggest:   alertDescs[pointInfo.PartType].Suggest,
+								Confirm:   1,
 								Source:    0,
 							}
 							tag := mod.CheckTagExist(tx, pdata.PointUUID, responseBody.Data.FaultName)
@@ -2617,7 +2619,7 @@ func GetAlgorithmHandler(c echo.Context) (err error) {
 		if err = db.Table("windfarm").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts, ROUND(CAST(COUNT(CASE WHEN alert.confirm = 1 THEN 1 END) AS FLOAT) / COUNT(alert.strategy) * 100, 2) AS accuracy").
 			Joins("RIGHT JOIN machine on machine.windfarm_uuid = windfarm.uuid").Joins("RIGHT JOIN part on part.machine_uuid = machine.uuid").
 			Joins("RIGHT JOIN point on point.part_uuid = part.uuid").Joins("RIGHT JOIN alert on alert.point_uuid = point.uuid").Group("alert.strategy").
-			Where("machine.id = ?", id).Find(&algorith).Error; err != nil {
+			Where("windfarm.id = ?", id).Find(&algorith).Error; err != nil {
 
 			mainlog.Error("获取风场预警统计失败")
 			ErrCheck(c, returnData, err, "获取风场预警统计失败")
@@ -2640,6 +2642,7 @@ func GetFarmFaultFeedBackHandler(c echo.Context) (err error) {
 	fanIdStr := c.QueryParam("fanId")
 	tagStr := c.QueryParam("tag")
 	idStr := c.Param("id")
+	part := c.QueryParam("part")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		mainlog.Error("风场id转int失败")
@@ -2673,16 +2676,20 @@ func GetFarmFaultFeedBackHandler(c echo.Context) (err error) {
 		condition = condition + fmt.Sprintf(" AND timeSet BETWEEN %d AND %d", startTimeSet, endTimeSet)
 	}
 
+	if part != "" {
+		condition = condition + fmt.Sprintf(" AND partType = '%s'", part)
+	}
+
 	midDB := db.Raw("(? UNION ALL ?) as temp",
 
-		db.Table("alert").Select("alert.id id,machine.id machineId, alert.time_set timeSet,alert.time_set endTimeSet,alert.source source, machine.`desc` turbineName, alert.`level` `level` ,point.`name` location,alert.`desc` `desc`").
+		db.Table("alert").Select("alert.id id,machine.id machineId, alert.time_set timeSet,alert.time_set endTimeSet,alert.source source, machine.`desc` turbineName, alert.`level` `level` ,point.`name` location,alert.`desc` `desc`, part.type partType").
 			Joins("LEFT JOIN point ON point.uuid = alert.point_uuid").Joins("LEFT JOIN part on part.uuid = point.part_uuid").
 			Joins("LEFT JOIN machine on machine.uuid = part.machine_uuid").Joins("LEFT JOIN windfarm on windfarm.uuid = machine.windfarm_uuid").
 			Where("windfarm.id = ? AND alert.deleted_at IS NULL", id),
 
 		//故障反馈表：如果测点uuid不为空，则location显示point.name，测点uuid不存在,location为part.name
 		db.Table("fault_back fb").
-			Select("fb.id,machine.id machineId, fb.start_time_set timeSet, fb.end_time_set as endTimeSet,fb.source source, machine.`desc` turbineName, fb.`status` `status`, COALESCE(point.`name`, part.`name`) AS location,fb.tag `desc`").
+			Select("fb.id,machine.id machineId, fb.start_time_set timeSet, fb.end_time_set as endTimeSet,fb.source source, machine.`desc` turbineName, fb.`status` `status`, COALESCE(point.`name`, part.`name`) AS location,fb.tag `desc`,part.type partType").
 			Joins("LEFT JOIN fault_tag_second ft on ft.id = fb.tag ").Joins("LEFT JOIN part on part.uuid = fb.part_uuid").
 			Joins("LEFT JOIN point on point.uuid = fb.point_uuid").Joins("LEFT JOIN machine on machine.uuid = fb.machine_uuid").
 			Joins("LEFT JOIN windfarm on windfarm.uuid = machine.windfarm_uuid").Where("windfarm.id = ? AND fb.is_del = FALSE", id),
@@ -3005,8 +3012,13 @@ func GetFaultTagByTypeHandler(c echo.Context) (err error) {
 	var returnData mod.ReturnData
 	var res []mod.FaultTagFirst
 	part := c.Param("part")
-	if err = db.Table("fault_tag_first").Where("type = ? AND is_del = false",
-		part).Preload("Childrens").Find(&res).Error; err != nil {
+	condition := ""
+	if part == ":part" || part == "" || part == "undefined" {
+		condition = "type IN ('主轴承','齿轮箱','发电机','叶片','塔筒','机舱') AND is_del = false"
+	} else {
+		condition = fmt.Sprintf("type = '%s' AND is_del = false", part)
+	}
+	if err = db.Table("fault_tag_first").Where(condition).Preload("Childrens").Find(&res).Error; err != nil {
 		mainlog.Error("获取故障标签失败 %v", err)
 		ErrCheck(c, returnData, err, "获取故障标签失败")
 		return err
@@ -3765,7 +3777,7 @@ func getMachineComponentsInfo(res *mod.DocumentStruct) (err error) {
 
 // 获取风机、部件、测点、报警详细信息
 func getMachineComponentsDetails(res *mod.DocumentStruct) (err error) {
-	//查询风机下部件，测点
+	//查询风场下所有风机下部件，测点
 	if err = db.Model(&mod.Machine{}).
 		Joins("LEFT JOIN windfarm ON machine.windfarm_uuid = windfarm.uuid").
 		Select("machine.id id, machine.name machineNum,machine.uuid machineUUID").
