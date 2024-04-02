@@ -1224,7 +1224,6 @@ var modelName = map[string]string{
 // @Return suggest 建议
 func GetDescAndSuggestByLevel(level int, partType, alerType, location string) (desc, suggest string) {
 	switch {
-
 	// 主轴承
 	case (level == 1 || level == 0) && partType == "主轴承":
 		return "振动幅值趋势平稳；无明显轴承故障频率", "建议正常运行"
@@ -3816,6 +3815,10 @@ func getMachineComponentsDetails(res *mod.DocumentStruct) (err error) {
 					part.Points[k].Alert.Desc, part.Points[k].Alert.Suggest = GetDescAndSuggestByLevel(int(part.Points[k].Alert.Level), partType, "", part.Points[k].PointName)
 				} else {
 					// 存在报警
+					var partType string
+					if err = db.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid = ?", point.UUID).Find(&partType).Error; err != nil {
+						return err
+					}
 					// 1、查询趋势图
 					db.Table("point").Select("id point_id, name point_name").Where("uuid = ?", point.UUID).Scan(&part.Points[k].TrendChart.Currentplot)
 					if err = part.Points[k].TrendChart.FanStaticPlot2(db, "rmsvalue", machine.Id, res.StartTimeSet, res.EndTimeSet); err != nil {
@@ -3826,6 +3829,7 @@ func getMachineComponentsDetails(res *mod.DocumentStruct) (err error) {
 						return
 					}
 					// 报警条目直接读取，报警的建议、故障说明
+					//part.Points[k].Alert.Desc, part.Points[k].Alert.Suggest = GetDescAndSuggestByLevel(int(part.Points[k].Alert.Level), partType, part.Points[k].Alert.Type, part.Points[k].PointName)
 				}
 
 			}

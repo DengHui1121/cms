@@ -84,14 +84,14 @@ func TypeRead(ftype string, src multipart.File, parsing Parsing) (info string, d
 	if fileSuffix == ".txt" {
 		return ReadTXTfile(fileNameWithOutSuffix, src, parsing)
 	} else if fileSuffix == ".csv" {
-		return ReadCSVfile(src)
+		return ReadCSVfile(fileNameWithOutSuffix, src, parsing)
 	} else {
-		return ReadEXCELfile(src)
+		return ReadEXCELfile(fileNameWithOutSuffix, src, parsing)
 	}
 }
 
 // 从excel xlsx读入
-func ReadEXCELfile(file multipart.File) (info string, data []byte, err error) {
+func ReadEXCELfile(fileName string, file multipart.File, parsing Parsing) (info string, data []byte, err error) {
 	reader, err := excelize.OpenReader(file)
 	if err != nil {
 		return info, nil, err
@@ -100,7 +100,12 @@ func ReadEXCELfile(file multipart.File) (info string, data []byte, err error) {
 	if err != nil {
 		return info, nil, err
 	}
-	info = rows[0][0]
+	switch parsing.Type {
+	case 0:
+		info = rows[0][0]
+	case 1:
+		info = fileName
+	}
 	var buffer bytes.Buffer
 	for k, v := range rows {
 		if k > 0 {
@@ -112,17 +117,22 @@ func ReadEXCELfile(file multipart.File) (info string, data []byte, err error) {
 }
 
 // 从csv读入
-func ReadCSVfile(file multipart.File) (info string, data []byte, err error) {
+func ReadCSVfile(fileName string, file multipart.File, parsing Parsing) (info string, data []byte, err error) {
 	reader := csv.NewReader(file)
-	reader.LazyQuotes = true
-	infor, err := reader.Read()
-	if len(infor) == 0 {
-		return info, nil, errors.New("无数据信息。")
-	}
-	if isUtf8([]byte(infor[0])) {
-		info = strings.TrimSpace(infor[0])
-	} else {
-		info = strings.TrimSpace(ConvertGBK2Str(infor[0]))
+	switch parsing.Type {
+	case 0:
+		reader.LazyQuotes = true
+		infor, _ := reader.Read()
+		if len(infor) == 0 {
+			return info, nil, errors.New("无数据信息。")
+		}
+		if isUtf8([]byte(infor[0])) {
+			info = strings.TrimSpace(infor[0])
+		} else {
+			info = strings.TrimSpace(ConvertGBK2Str(infor[0]))
+		}
+	case 1:
+		info = fileName
 	}
 	if err != nil {
 		return info, nil, err

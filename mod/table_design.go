@@ -1782,6 +1782,7 @@ type PointDocument struct {
 	PointName         string          `json:"pointName" gorm:"column:name"`
 	PartUUID          string          `json:"partUUID" gorm:"column:part_uuid"`
 	Alert             AlertDocument   `json:"alerts" gorm:"foreignKey:PointUUID;references:UUID"`
+	Status            int             `json:"status" gorm:"column:status"`
 	TrendChart        MultiDatatoPlot `json:"trendChart" gorm:"-"`        // 趋势图
 	TimeFrequencyPlot DatatoPlot2     `json:"timeFrequencyPlot" gorm:"-"` // 时频图
 }
