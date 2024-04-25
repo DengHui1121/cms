@@ -185,7 +185,7 @@ func InsertPointData(dataipport string, filename string) error {
 					return err
 				}
 			}
-			if err = mod.InsertData(db, tx, dataipport, pdata); err != nil {
+			if err = mod.InsertData(db, tx, dataipport, &pdata); err != nil {
 				return err
 			}
 			return nil
@@ -195,7 +195,7 @@ func InsertPointData(dataipport string, filename string) error {
 		}
 		dlog.Info("%v 文件，覆盖了数据。", filename)
 	} else {
-		if err = mod.InsertData(db, db, dataipport, pdata); err != nil {
+		if err = mod.InsertData(db, db, dataipport, &pdata); err != nil {
 			return err
 		}
 		dlog.Info("%v 文件，写入了数据。", filename)

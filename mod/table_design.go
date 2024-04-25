@@ -87,7 +87,7 @@ type Windfarm struct {
 	UUID            string    `gorm:"unique_index" json:"-"`
 	FactoryID       uint      `gorm:"-" json:"company_id,string"`
 	FactoryUUID     string    `gorm:"comment:公司uuid" json:"-"`
-	Name            string    `gorm:"not null; comment:风场名" json:"desc"`            //前端显示为风场编码
+	Name            string    `gorm:"not null; comment:风场名" json:"desc"`             //前端显示为风场编码
 	Desc            string    `gorm:"not null; comment:风场描述" json:"windfield_name"` //前端显示为风场名称
 	Province        string    `gorm:"not null; comment:省" json:"province"`
 	City            string    `gorm:"not null; comment:市" json:"city"`
@@ -110,7 +110,7 @@ type Windfarm2 struct {
 	FactoryID       uint      `gorm:"column:factoryId" json:"company_id,string"`
 	FactoryUUID     string    `gorm:"comment:公司uuid" json:"-"`
 	FactoryName     string    `gorm:"column:factoryName" json:"company_name"`
-	Name            string    `gorm:"not null; comment:风场名" json:"desc"`            //前端显示为风场编码
+	Name            string    `gorm:"not null; comment:风场名" json:"desc"`             //前端显示为风场编码
 	Desc            string    `gorm:"not null; comment:风场描述" json:"windfield_name"` //前端显示为风场名称
 	Province        string    `gorm:"not null; comment:省" json:"province"`
 	City            string    `gorm:"not null; comment:市" json:"city"`
@@ -199,15 +199,15 @@ type Machine struct {
 	Capacity        float32 `gorm:"column:capacity; comment:容量; default:0.0" json:"capacity,string"`
 	OverinsuredTime string  `gorm:"column:overinsuredTime;comment:过保时间" json:"overinsuredTime"`
 	Status          uint8   `gorm:"type:tinyint;default:0;comment:状态" json:"status,string"`
-	Genfactory      string  `gorm:"column:genfactory;comment:发电机厂家" json:"genfactory" toml:"genfactory"`      //TODO 发电机厂家
-	Gentype         string  `gorm:"column:gentype;comment:发电机型号" json:"gentype" toml:"gentype"`               //TODO 发电机型号
-	Gearfactory     string  `gorm:"column:gbxfactory;comment:齿轮箱厂家" json:"gbxfactory" toml:"gbxfactory"`      //TODO 齿轮箱厂家
-	Geartype        string  `gorm:"column:gbxtype;comment:齿轮箱型号" json:"gbxtype" toml:"gbxtype"`               //TODO 齿轮箱型号
+	Genfactory      string  `gorm:"column:genfactory;comment:发电机厂家" json:"genfactory" toml:"genfactory"`     //TODO 发电机厂家
+	Gentype         string  `gorm:"column:gentype;comment:发电机型号" json:"gentype" toml:"gentype"`              //TODO 发电机型号
+	Gearfactory     string  `gorm:"column:gbxfactory;comment:齿轮箱厂家" json:"gbxfactory" toml:"gbxfactory"`     //TODO 齿轮箱厂家
+	Geartype        string  `gorm:"column:gbxtype;comment:齿轮箱型号" json:"gbxtype" toml:"gbxtype"`              //TODO 齿轮箱型号
 	Mainshaffactory string  `gorm:"column:mbrfactory;comment:主轴厂家" json:"mbrfactory" toml:"mbrfactory"`       //TODO 主轴厂家
 	Mainshaftype    string  `gorm:"column:mbrtype;comment:主轴型号" json:"mbrtype" toml:"mbrtype"`                //TODO 主轴型号
 	Bladefactory    string  `gorm:"column:bladefactory;comment:叶片厂家" json:"bladefactory" toml:"bladefactory"` //TODO 叶片厂家
 	Bladetype       string  `gorm:"column:bladetype;comment:叶片型号" json:"bladetype" toml:"bladetype"`          //TODO 叶片型号
-	Health          float64 `gorm:"-" json:"health"`                                                          //全生命周期
+	Health          float64 `gorm:"-" json:"health"`                                                              //全生命周期
 	Tag             int     `gorm:"column:tag;comment:故障标签" json:"tag"`
 	TotalAlertCount int     `json:"total_alert_count"  gorm:"-"` //一年内故障次数
 	Parts           []Part  `json:"children" gorm:"foreignKey:MachineUUID;references:UUID"`
@@ -239,15 +239,15 @@ type Machine2 struct {
 	Capacity        float32 `gorm:"column:capacity; comment:容量; default:0.0" json:"capacity,string"`
 	OverinsuredTime string  `gorm:"column:overinsuredTime;comment:过保时间" json:"overinsuredTime"`
 	Status          uint8   `gorm:"type:tinyint;default:0;comment:状态" json:"status,string"`
-	Genfactory      string  `gorm:"column:genfactory;comment:发电机厂家" json:"genfactory" toml:"genfactory"`      //TODO 发电机厂家
-	Gentype         string  `gorm:"column:gentype;comment:发电机型号" json:"gentype" toml:"gentype"`               //TODO 发电机型号
-	Gearfactory     string  `gorm:"column:gbxfactory;comment:齿轮箱厂家" json:"gbxfactory" toml:"gbxfactory"`      //TODO 齿轮箱厂家
-	Geartype        string  `gorm:"column:gbxtype;comment:齿轮箱型号" json:"gbxtype" toml:"gbxtype"`               //TODO 齿轮箱型号
+	Genfactory      string  `gorm:"column:genfactory;comment:发电机厂家" json:"genfactory" toml:"genfactory"`     //TODO 发电机厂家
+	Gentype         string  `gorm:"column:gentype;comment:发电机型号" json:"gentype" toml:"gentype"`              //TODO 发电机型号
+	Gearfactory     string  `gorm:"column:gbxfactory;comment:齿轮箱厂家" json:"gbxfactory" toml:"gbxfactory"`     //TODO 齿轮箱厂家
+	Geartype        string  `gorm:"column:gbxtype;comment:齿轮箱型号" json:"gbxtype" toml:"gbxtype"`              //TODO 齿轮箱型号
 	Mainshaffactory string  `gorm:"column:mbrfactory;comment:主轴厂家" json:"mbrfactory" toml:"mbrfactory"`       //TODO 主轴厂家
 	Mainshaftype    string  `gorm:"column:mbrtype;comment:主轴型号" json:"mbrtype" toml:"mbrtype"`                //TODO 主轴型号
 	Bladefactory    string  `gorm:"column:bladefactory;comment:叶片厂家" json:"bladefactory" toml:"bladefactory"` //TODO 叶片厂家
 	Bladetype       string  `gorm:"column:bladetype;comment:叶片型号" json:"bladetype" toml:"bladetype"`          //TODO 叶片型号
-	Health          float64 `gorm:"-" json:"health"`                                                          //全生命周期
+	Health          float64 `gorm:"-" json:"health"`                                                              //全生命周期
 	Tag             int     `gorm:"column:tag;comment:故障标签" json:"tag"`
 	TotalAlertCount int     `json:"total_alert_count"  gorm:"-"` //一年内故障次数
 	Parts           []Part  `json:"children" gorm:"foreignKey:MachineUUID;references:UUID"`
@@ -559,31 +559,31 @@ type Data struct {
 	ID            uint    `gorm:"primarykey" json:"id"`
 	PointID       uint    `gorm:"-" json:"-"`
 	PointUUID     string  `json:"pointUUID"`
-	Datatag       int8    `gorm:"type:tinyint;default:1" json:"datatag"`                       //不压缩 赋值为1
-	Length        string  `json:"length"`                                                      //长度
-	SampleFreq    int     `json:"sample_freq"`                                                 //采样频率
-	Datatype      string  `json:"datatype" gorm:"column:datatype; default:TIMEWAVE"`           //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
-	Measuredefine string  `json:"define"`                                                      //测量参数描述
-	Filepath      string  `json:"file_name"`                                                   //数据文件名
-	Rpm           float32 `json:"rpm"`                                                         //转速
-	Time          string  `json:"time" gorm:"-"`                                               //采样时间
-	TimeSet       int64   `json:"-"`                                                           //格式转换
-	Wavesave      string  `json:"wavesave"`                                                    //备用字段 无需赋值
-	Status        uint8   `gorm:"type:tinyint;default:1" json:"status,string"`                 //数据状态 //TODO 数据导入分析后修改
-	BandValue1    string  `json:"bv1"`                                                         //预留：频带值1。格式：最小值 最大值
-	BandValue2    string  `json:"bv2"`                                                         //预留：频带值2
-	BandValue3    string  `json:"bv3"`                                                         //预留：频带值3
-	BandValue4    string  `json:"bv4"`                                                         //预留：频带值4
-	BandValue5    string  `json:"bv5"`                                                         //预留：频带值5
-	BandValue6    string  `json:"bv6"`                                                         //预留：频带值6
+	Datatag       int8    `gorm:"type:tinyint;default:1" json:"datatag"`                         //不压缩 赋值为1
+	Length        string  `json:"length"`                                                        //长度
+	SampleFreq    int     `json:"sample_freq"`                                                   //采样频率
+	Datatype      string  `json:"datatype" gorm:"column:datatype; default:TIMEWAVE"`             //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
+	Measuredefine string  `json:"define"`                                                        //测量参数描述
+	Filepath      string  `json:"file_name"`                                                     //数据文件名
+	Rpm           float32 `json:"rpm"`                                                           //转速
+	Time          string  `json:"time" gorm:"-"`                                                 //采样时间
+	TimeSet       int64   `json:"-"`                                                             //格式转换
+	Wavesave      string  `json:"wavesave"`                                                      //备用字段 无需赋值
+	Status        uint8   `gorm:"type:tinyint;default:1" json:"status,string"`                   //数据状态 //TODO 数据导入分析后修改
+	BandValue1    string  `json:"bv1"`                                                           //预留：频带值1。格式：最小值 最大值
+	BandValue2    string  `json:"bv2"`                                                           //预留：频带值2
+	BandValue3    string  `json:"bv3"`                                                           //预留：频带值3
+	BandValue4    string  `json:"bv4"`                                                           //预留：频带值4
+	BandValue5    string  `json:"bv5"`                                                           //预留：频带值5
+	BandValue6    string  `json:"bv6"`                                                           //预留：频带值6
 	RotorSpeed    float32 `json:"rotorSpeed" gorm:"column:rotor_speed; comment:转速 type:float"` //转速
-	Power         float32 `json:"power"`                                                       //功率
-	WindSpeed     float32 `json:"windspeed"`                                                   //风速
-	Yew           float32 `json:"yew"`                                                         //偏航
-	Pitch1        float32 `json:"pitch1"`                                                      //浆角1
-	Pitch2        float32 `json:"pitch2"`                                                      //浆角2
-	Pitch3        float32 `json:"pitch3"`                                                      //浆角3
-	Tag           string  `json:"tag"`                                                         //故障标签
+	Power         float32 `json:"power"`                                                         //功率
+	WindSpeed     float32 `json:"windspeed"`                                                     //风速
+	Yew           float32 `json:"yew"`                                                           //偏航
+	Pitch1        float32 `json:"pitch1"`                                                        //浆角1
+	Pitch2        float32 `json:"pitch2"`                                                        //浆角2
+	Pitch3        float32 `json:"pitch3"`                                                        //浆角3
+	Tag           string  `json:"tag"`                                                           //故障标签
 	Result        `json:"result" gorm:"embedded"`
 	Wave          Wave    `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
 	Alert         []Alert `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
@@ -599,26 +599,26 @@ func (u *Data) AfterFind(tx *gorm.DB) error {
 }
 
 type Result struct {
-	Rmsvalue  float32 `json:"rmsvalue" gorm:"column:rmsvalue;comment:有效值"`      //有效值
-	Indexkur  float32 `json:"indexkur" gorm:"column:indexkur;comment:峭度指标"`     //峭度指标
-	Indexi    float32 `json:"indexi" gorm:"column:indexi;comment:脉冲指标"`         //脉冲指标
-	Indexk    float32 `json:"indexk" gorm:"column:indexk;comment:波形指标"`         //波形指标
-	Indexl    float32 `json:"indexl" gorm:"column:indexl;comment:裕度指标"`         //裕度指标
-	Indexsk   float32 `json:"indexsk" gorm:"column:indexsk;comment:歪度指标"`       //歪度指标
-	Indexc    float32 `json:"indexc" gorm:"column:indexc;comment:峰值指标"`         //峰值指标
+	Rmsvalue  float32 `json:"rmsvalue" gorm:"column:rmsvalue;comment:有效值"`         //有效值
+	Indexkur  float32 `json:"indexkur" gorm:"column:indexkur;comment:峭度指标"`       //峭度指标
+	Indexi    float32 `json:"indexi" gorm:"column:indexi;comment:脉冲指标"`           //脉冲指标
+	Indexk    float32 `json:"indexk" gorm:"column:indexk;comment:波形指标"`           //波形指标
+	Indexl    float32 `json:"indexl" gorm:"column:indexl;comment:裕度指标"`           //裕度指标
+	Indexsk   float32 `json:"indexsk" gorm:"column:indexsk;comment:歪度指标"`         //歪度指标
+	Indexc    float32 `json:"indexc" gorm:"column:indexc;comment:峰值指标"`           //峰值指标
 	Indexxr   float32 `json:"indexxr" gorm:"column:indexxr;comment:方根赋值指标"`     //方根赋值指标
-	Indexmax  float32 `json:"indexmax" gorm:"column:indexmax;comment:最大值指标"`    //最大值
-	Indexmin  float32 `json:"indexmin" gorm:"column:indexmin;comment:最小值指标"`    //最小值
-	Indexmean float32 `json:"indexmean" gorm:"column:indexmean;comment:平均值指标"`  //平均值
+	Indexmax  float32 `json:"indexmax" gorm:"column:indexmax;comment:最大值指标"`     //最大值
+	Indexmin  float32 `json:"indexmin" gorm:"column:indexmin;comment:最小值指标"`     //最小值
+	Indexmean float32 `json:"indexmean" gorm:"column:indexmean;comment:平均值指标"`   //平均值
 	Indexeven float32 `json:"indexeven" gorm:"column:indexeven;comment:平均赋值指标"` //平均赋值指标
-	Indexp    float32 `json:"indexp" gorm:"column:indexp;comment:峰值"`           //峰值
-	Indexpp   float32 `json:"indexpp" gorm:"column:indexpp;comment:峰峰值"`        //峰峰值
-	Brms1     float32 `json:"brms1"`                                            //预留：频带值1的有效值
-	Brms2     float32 `json:"brms2"`                                            //预留：频带值2的有效值
-	Brms3     float32 `json:"brms3"`                                            //预留：频带值3的有效值
-	Brms4     float32 `json:"brms4"`                                            //预留：频带值4的有效值
-	Brms5     float32 `json:"brms5"`                                            //预留：频带值5的有效值
-	Brms6     float32 `json:"brms6"`                                            //预留：频带值6的有效值
+	Indexp    float32 `json:"indexp" gorm:"column:indexp;comment:峰值"`               //峰值
+	Indexpp   float32 `json:"indexpp" gorm:"column:indexpp;comment:峰峰值"`           //峰峰值
+	Brms1     float32 `json:"brms1"`                                                  //预留：频带值1的有效值
+	Brms2     float32 `json:"brms2"`                                                  //预留：频带值2的有效值
+	Brms3     float32 `json:"brms3"`                                                  //预留：频带值3的有效值
+	Brms4     float32 `json:"brms4"`                                                  //预留：频带值4的有效值
+	Brms5     float32 `json:"brms5"`                                                  //预留：频带值5的有效值
+	Brms6     float32 `json:"brms6"`                                                  //预留：频带值6的有效值
 	TypiFeature
 }
 
@@ -658,15 +658,15 @@ type Alert struct {
 	BandAlert        alert.BandAlert   `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
 	TreeAlert        alert.TreeAlert   `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
 	ManualAlert      alert.ManualAlert `json:"-" gorm:"foreignKey:AlertUUID;references:UUID"`
-	Code             string            `gorm:"comment:报警类型代码" json:"code"`                                      //预留 告警类型代码
-	Faulttype        int               `json:"faulttype" gorm:"column:faulttype; comment:故障标识"`                 //预留 故障标识
-	Source           uint8             `json:"source" gorm:"column:source; comment:报警来源"`                       //0：自动 1：人工
+	Code             string            `gorm:"comment:报警类型代码" json:"code"`                                               //预留 告警类型代码
+	Faulttype        int               `json:"faulttype" gorm:"column:faulttype; comment:故障标识"`                            //预留 故障标识
+	Source           uint8             `json:"source" gorm:"column:source; comment:报警来源"`                                  //0：自动 1：人工
 	Confirm          int               `json:"confirm" gorm:"column:confirm; comment:报警确认,0:无故障 1:与报警一致 2:待观察"` //TODO 0:无故障 1:与报警一致 2:待观察
-	Suggest          string            `json:"suggest" gorm:"column:suggest; comment:处理建议"`                     //TODO 增加处理建议 可编辑 显示在右下角
-	CheckTime        string            `json:"checkTime" gorm:"column:check_time; comment:检查时间"`                //TODO 增加处理时间
-	Handle           uint8             `gorm:"type:tinyint" json:"handle"`                                      //0为红色表示未处理，1为绿色表示已处理。
-	Broadcast        uint8             `gorm:"type:tinyint" json:"broadcast"`                                   //是否通知给了前端 0/1
-	BroadcastMessage string            `gorm:"-" json:"message"`                                                //是否通知给了前端 0/1
+	Suggest          string            `json:"suggest" gorm:"column:suggest; comment:处理建议"`                                //TODO 增加处理建议 可编辑 显示在右下角
+	CheckTime        string            `json:"checkTime" gorm:"column:check_time; comment:检查时间"`                           //TODO 增加处理时间
+	Handle           uint8             `gorm:"type:tinyint" json:"handle"`                                                     //0为红色表示未处理，1为绿色表示已处理。
+	Broadcast        uint8             `gorm:"type:tinyint" json:"broadcast"`                                                  //是否通知给了前端 0/1
+	BroadcastMessage string            `gorm:"-" json:"message"`                                                               //是否通知给了前端 0/1
 }
 
 func (Alert) TableName() string {
@@ -811,23 +811,23 @@ type Data_Update struct {
 	ID            uint    `gorm:"primary" json:"id,string"`
 	PointID       uint    `gorm:"-" json:"point_id,string"`
 	PointUUID     string  `gorm:"unique_index" json:"-"`
-	Datatag       int8    `gorm:"type:tinyint;default:1" json:"datatag"`                        //不压缩 赋值为1
-	Length        string  `json:"length"`                                                       //长度
-	SampleFreq    int     `json:"sample_freq"`                                                  //采样频率
-	Datatype      string  `json:"datatype" gorm:"column:datatype; default:TIMEWAVE"`            //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
-	Measuredefine string  `json:"define"`                                                       //测量参数描述
-	Filepath      string  `json:"file_name"`                                                    //数据文件名
-	Rpm           float32 `json:"rpm"`                                                          //转速
-	Time          string  `json:"time" gorm:"-"`                                                //采样时间
-	TimeSet       int64   `json:"-"`                                                            //格式转换
-	Wavesave      string  `json:"wavesave"`                                                     //备用字段 无需赋值
-	Status        uint8   `gorm:"type:tinyint;default:1" json:"status,string"`                  //数据状态 //TODO 数据导入分析后修改
-	BandValue1    string  `json:"bv1"`                                                          //预留：频带值1。格式：最小值,最大值
-	BandValue2    string  `json:"bv2"`                                                          //预留：频带值2
-	BandValue3    string  `json:"bv3"`                                                          //预留：频带值3
-	BandValue4    string  `json:"bv4"`                                                          //预留：频带值4
-	BandValue5    string  `json:"bv5"`                                                          //预留：频带值5
-	BandValue6    string  `json:"bv6"`                                                          //预留：频带值6
+	Datatag       int8    `gorm:"type:tinyint;default:1" json:"datatag"`                          //不压缩 赋值为1
+	Length        string  `json:"length"`                                                         //长度
+	SampleFreq    int     `json:"sample_freq"`                                                    //采样频率
+	Datatype      string  `json:"datatype" gorm:"column:datatype"`                                //波形类型。TIMEWAVE/LONGTIMEWAVE/TACH
+	Measuredefine string  `json:"define"`                                                         //测量参数描述
+	Filepath      string  `json:"file_name"`                                                      //数据文件名
+	Rpm           float32 `json:"rpm"`                                                            //转速
+	Time          string  `json:"time" gorm:"-"`                                                  //采样时间
+	TimeSet       int64   `json:"-"`                                                              //格式转换
+	Wavesave      string  `json:"wavesave"`                                                       //备用字段 无需赋值
+	Status        uint8   `gorm:"type:tinyint;default:1" json:"status,string"`                    //数据状态 //TODO 数据导入分析后修改
+	BandValue1    string  `json:"bv1"`                                                            //预留：频带值1。格式：最小值,最大值
+	BandValue2    string  `json:"bv2"`                                                            //预留：频带值2
+	BandValue3    string  `json:"bv3"`                                                            //预留：频带值3
+	BandValue4    string  `json:"bv4"`                                                            //预留：频带值4
+	BandValue5    string  `json:"bv5"`                                                            //预留：频带值5
+	BandValue6    string  `json:"bv6"`                                                            //预留：频带值6
 	RotorSpeed    float32 `json:"rotorSpeed" gorm:"column:rotor_speed; comment:转速; type:float"` //转速
 	Power         float32 `json:"power"`
 	WindSpeed     float32 `json:"windspped"`
@@ -898,11 +898,11 @@ type CMSData struct {
 	ChannelContentList ChannelContent `json:"ChannelContentList"` //通道信息
 }
 type FactoryUpdateData struct {
-	TurbineName   string                 `json:"TurbineName"` //风机名,按风机名称排序
-	StopLevel     int                    `json:"StopLevel"`   //预警停机等级
-	DeviceTime    string                 `json:"DeviceTime"`  //系统时间/设备时间
-	WorkCondition `json:"WorkCondition"` //运行工况
-	CMSDatas      []CMSData              `json:"CMSData"` //CMS数据
+	TurbineName   string    `json:"TurbineName"` //风机名,按风机名称排序
+	StopLevel     int       `json:"StopLevel"`   //预警停机等级
+	DeviceTime    string    `json:"DeviceTime"`  //系统时间/设备时间
+	WorkCondition `json:"WorkCondition"`         //运行工况
+	CMSDatas      []CMSData `json:"CMSData"`     //CMS数据
 }
 type UpdateFactoryData struct {
 	FarmId            int    `json:"farmId"`
@@ -1118,6 +1118,7 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 							TypiFeature:    responseBody.TypiFeature,
 							CreateTime:     GetCurrentTime(),
 							UpdateTime:     GetCurrentTime(),
+							DataTime:       TimetoStr(data.TimeSet).Format("2006-01-02 15:04:05"),
 						}
 						//插入结果表GetCurrentTime
 						if err = tx.Table("algorithm_result_a").Create(&algorithmResultA).Error; err != nil {
@@ -1215,6 +1216,7 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 						DataDTO:     responseBody.Data.Translate(),
 						CreateTime:  GetCurrentTime(),
 						UpdateTime:  GetCurrentTime(),
+						DataTime:    TimetoStr(data.TimeSet).Format("2006-01-02 15:04:05"),
 					}
 					//插入结果表
 					if err = tx.Table("algorithm_result_b").Create(&algorithmResultB).Error; err != nil {
@@ -1379,6 +1381,7 @@ type AlgorithmResultB struct {
 	DataUUID    string `json:"dataUUID" gorm:"data_uuid"`
 	AlgorithmID int64  `json:"algorithmId" gorm:"algorithm_id"`
 	DataDTO
+	DataTime   string `json:"dataTime" gorm:"column:data_time; comment:数据时间"`
 	CreateTime string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
 	UpdateTime string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
 	IsDel      bool   `json:"isDel" gorm:"is_del"`
@@ -1489,6 +1492,7 @@ type AlgorithmResultA struct {
 	FTendencyFloat
 	TTendencyFloat
 	TypiFeature
+	DataTime   string `json:"dataTime" gorm:"column:data_time"`
 	CreateTime string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
 	UpdateTime string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
 	IsDel      bool   `json:"isDel" gorm:"is_del"`

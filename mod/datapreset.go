@@ -270,7 +270,9 @@ func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing P
 		err = errors.New("point missing." + err.Error())
 		return err
 	}
-
+	if dataInfo.DataType == "" {
+		dd.Datatype = "TIMEWAVE"
+	}
 	// 根据参数获取数据所需相关参数，填充。
 	var pointid uint = goalpoint.ID
 	dd.PointID = goalpoint.ID

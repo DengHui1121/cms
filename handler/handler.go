@@ -935,7 +935,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 					return err
 				}
 			}
-			if err = mod.InsertData(db, tx, ipport, pdata); err != nil {
+			if err = mod.InsertData(db, tx, ipport, &pdata); err != nil {
 				return err
 			}
 			return nil
@@ -953,7 +953,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 		fid := ppmwcid[2]
 		//执行预警算法, 需不需要新开协程计算
 		var algorithms []mod.Algorithm
-		if err = db.Table("algorithm").Where("point_uuid = ? and enabled = true", pdata.PointUUID).Find(&algorithms).Error; err != nil {
+		if err = db.Table("algorithm").Where("point_uuid = ? and enabled = true and is_del = false", pdata.PointUUID).Find(&algorithms).Error; err != nil {
 			err = errors.New("未找到算法")
 			ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时，查找相关算法异常")
 			return err
@@ -1010,12 +1010,13 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 							}
 						}
 						pdata.TypiFeature = responseBody.TypiFeature
-						if err = tx.Table("data_" + fid).Omit("Wave").Updates(&pdata).Error; err != nil {
+						if err = tx.Table("data_"+fid).Omit("Wave").Where("id = ?", pdata.ID).Updates(&pdata).Error; err != nil {
 							tx.Rollback()
 							err = errors.New("更新结果到数据表失败")
 							ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时 ")
 							return err
 						}
+
 						algorithmResultA := mod.AlgorithmResultA{
 							DataUUID:       pdata.UUID,
 							AlgorithmID:    algorithm.Id,
@@ -1024,6 +1025,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 							TypiFeature:    responseBody.TypiFeature,
 							CreateTime:     mod.GetCurrentTime(),
 							UpdateTime:     mod.GetCurrentTime(),
+							DataTime:       mod.TimetoStr(pdata.TimeSet).Format("2006-01-02 15:04:05"),
 						}
 						//插入结果表
 						if err = tx.Table("algorithm_result_a").Create(&algorithmResultA).Error; err != nil {
@@ -1126,6 +1128,7 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 							AlgorithmID: algorithm.Id,
 							CreateTime:  mod.GetCurrentTime(),
 							UpdateTime:  mod.GetCurrentTime(),
+							DataTime:    mod.TimetoStr(pdata.TimeSet).Format("2006-01-02 15:04:05"),
 						}
 						//插入结果表
 						if err = tx.Table("algorithm_result_b").Create(&algorithmResultB).Error; err != nil {
@@ -1330,7 +1333,7 @@ func OverMPointData(ipport string) echo.HandlerFunc {
 					return err
 				}
 			}
-			if err = mod.InsertData(db, tx, ipport, pdata); err != nil {
+			if err = mod.InsertData(db, tx, ipport, &pdata); err != nil {
 				return err
 			}
 			return nil
@@ -2603,10 +2606,26 @@ func GetAlgorithmHandler(c echo.Context) (err error) {
 	}
 	switch typeStr {
 	case "fan":
-		if err = db.Table("machine").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts, ROUND(CAST(COUNT(CASE WHEN alert.confirm = 1 THEN 1 END) AS FLOAT) / COUNT(alert.strategy) * 100, 2) AS accuracy").
-			Joins("RIGHT JOIN part on part.machine_uuid = machine.uuid").Joins("RIGHT JOIN point on point.part_uuid = part.uuid").
-			Joins("RIGHT JOIN alert on alert.point_uuid = point.uuid").Group("alert.strategy").Where("machine.id = ?", id).
-			Find(&algorith).Error; err != nil {
+		query1 := db.Table("machine").
+			Select("alert.strategy AS `name`, COUNT(alert.strategy) AS counts, ROUND(CAST(COUNT(CASE WHEN alert.confirm = 1 THEN 1 END) AS FLOAT) / COUNT(alert.strategy) * 100, 2) AS accuracy").
+			Joins("RIGHT JOIN part ON part.machine_uuid = machine.uuid").
+			Joins("RIGHT JOIN point ON point.part_uuid = part.uuid").
+			Joins("RIGHT JOIN alert ON alert.point_uuid = point.uuid").
+			Joins("LEFT JOIN algorithm ON algorithm.name = alert.strategy").
+			Where("machine.id = ?", id).
+			Where("alert.type != ?", "预警算法").
+			Group("alert.strategy")
+		query2 := db.Table("machine").
+			Select("alert.strategy AS `name`, COUNT(alert.strategy) AS counts, ROUND(CAST(COUNT(CASE WHEN alert.confirm = 1 THEN 1 END) AS FLOAT) / COUNT(alert.strategy) * 100, 2) AS accuracy").
+			Joins("RIGHT JOIN part ON part.machine_uuid = machine.uuid").
+			Joins("RIGHT JOIN point ON point.part_uuid = part.uuid").
+			Joins("RIGHT JOIN alert ON alert.point_uuid = point.uuid").
+			Joins("LEFT JOIN algorithm ON algorithm.name = alert.strategy").
+			Where("machine.id = ?", id).
+			Where("alert.type = ?", "预警算法").
+			Where("algorithm.is_del = ?", false).
+			Group("alert.strategy")
+		if err = db.Select("name, counts, accuracy").Table("(? UNION ALL ?) AS union_table", query1, query2).Find(&algorith).Error; err != nil {
 
 			mainlog.Error("获取风机预警统计失败")
 			ErrCheck(c, returnData, err, "获取风机预警统计失败")
@@ -2615,11 +2634,30 @@ func GetAlgorithmHandler(c echo.Context) (err error) {
 		}
 
 	case "farm":
-		if err = db.Table("windfarm").Select("alert.strategy as `name`, COUNT(alert.strategy) as counts, ROUND(CAST(COUNT(CASE WHEN alert.confirm = 1 THEN 1 END) AS FLOAT) / COUNT(alert.strategy) * 100, 2) AS accuracy").
-			Joins("RIGHT JOIN machine on machine.windfarm_uuid = windfarm.uuid").Joins("RIGHT JOIN part on part.machine_uuid = machine.uuid").
-			Joins("RIGHT JOIN point on point.part_uuid = part.uuid").Joins("RIGHT JOIN alert on alert.point_uuid = point.uuid").Group("alert.strategy").
-			Where("windfarm.id = ?", id).Find(&algorith).Error; err != nil {
+		query1 := db.Table("windfarm").
+			Select("alert.strategy AS `name`, COUNT(alert.strategy) AS counts, ROUND(CAST(COUNT(CASE WHEN alert.confirm = 1 THEN 1 END) AS FLOAT) / COUNT(alert.strategy) * 100, 2) AS accuracy").
+			Joins("RIGHT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+			Joins("RIGHT JOIN part ON part.machine_uuid = machine.uuid").
+			Joins("RIGHT JOIN point ON point.part_uuid = part.uuid").
+			Joins("RIGHT JOIN alert ON alert.point_uuid = point.uuid").
+			Joins("LEFT JOIN algorithm ON algorithm.name = alert.strategy").
+			Where("windfarm.id = ?", id).
+			Where("alert.type != ?", "预警算法").
+			Group("alert.strategy")
 
+		// 第二个子查询
+		query2 := db.Table("windfarm").
+			Select("alert.strategy AS `name`, COUNT(alert.strategy) AS counts, ROUND(CAST(COUNT(CASE WHEN alert.confirm = 1 THEN 1 END) AS FLOAT) / COUNT(alert.strategy) * 100, 2) AS accuracy").
+			Joins("RIGHT JOIN machine ON machine.windfarm_uuid = windfarm.uuid").
+			Joins("RIGHT JOIN part ON part.machine_uuid = machine.uuid").
+			Joins("RIGHT JOIN point ON point.part_uuid = part.uuid").
+			Joins("RIGHT JOIN alert ON alert.point_uuid = point.uuid").
+			Joins("LEFT JOIN algorithm ON algorithm.name = alert.strategy").
+			Where("windfarm.id = ?", id).
+			Where("alert.type = ?", "预警算法").
+			Where("algorithm.is_del = ?", false).
+			Group("alert.strategy")
+		if err = db.Select("name, counts, accuracy").Table("(? UNION ALL ?) AS union_table", query1, query2).Find(&algorith).Error; err != nil {
 			mainlog.Error("获取风场预警统计失败")
 			ErrCheck(c, returnData, err, "获取风场预警统计失败")
 			return err

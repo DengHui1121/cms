@@ -525,7 +525,7 @@ func CheckData(db *gorm.DB, pdata *Data) error {
 	return nil
 }
 
-func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
+func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata *Data) error {
 	// var edata Data
 	pid := strconv.FormatUint(uint64(pdata.PointID), 10)
 	ppmwcid, _, _, err := PointtoFactory(db, pid)
@@ -576,7 +576,7 @@ func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
 			return err
 		}
 		//从标准表将频带写进数据库
-		BandUpdate(db, &pdata, bband)
+		BandUpdate(db, pdata, bband)
 		// 数据服务 调用exe计算result并获得数据结构，存至数据库。出现错误重复循环三次。
 		err = pdata.DataAnalysis_2(db, ipport, fid)
 		//循环尝试三次
@@ -635,7 +635,7 @@ func InsertData(ddb *gorm.DB, db *gorm.DB, ipport string, pdata Data) error {
 	//新开协程, 执行频带幅值、故障树报警
 	go func() {
 		//TODO DEBUG 报警 报警go进程，不耽误数据导入？
-		err = DataAlert_2(ddb, pdata, fid, ipport)
+		err = DataAlert_2(ddb, *pdata, fid, ipport)
 		if err != nil {
 			modlog.Error("频带报警出错。err:" + err.Error())
 		}
