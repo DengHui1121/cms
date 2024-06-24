@@ -1170,10 +1170,12 @@ func (updateData *UpdateFactoryData) InsertFactoryData(db *gorm.DB, farmIdStr, t
 							alerts = append(alerts, aler)
 						}
 
-						if err = tx.Table("alert").Create(&alerts).Error; err != nil {
-							tx.Rollback()
-							err = errors.New("报警表单新增记录失败")
-							return
+						if len(alerts) > 0 {
+							if err = tx.Table("alert").Create(&alerts).Error; err != nil {
+								tx.Rollback()
+								err = errors.New("报警表单新增记录失败")
+								return
+							}
 						}
 					} else if responseBody.Success == "False" && responseBody.Error == "0" {
 						err = errors.New("算法运行异常")
@@ -1553,16 +1555,16 @@ func (d *DataRes) Translate() (res DataDTO) {
 
 // 频域残差值
 type FTendencyString struct {
-	FLevel1 string `json:"lev_F1" gorm:"column:f_lev1"`
-	FLevel2 string `json:"lev_F2" gorm:"column:f_lev2"`
-	FScore  string `json:"scoreF" gorm:"column:f_score"`
+	FLevel1 string `json:"F_lev1" gorm:"column:f_lev1"`
+	FLevel2 string `json:"F_lev2" gorm:"column:f_lev2"`
+	FScore  string `json:"F_score" gorm:"column:f_score"`
 }
 
 // 时域残差值
 type TTendencyString struct {
-	TLevel1 string `json:"lev_T1" gorm:"column:t_lev1"`
-	TLevel2 string `json:"lev_T2" gorm:"column:t_lev2"`
-	TScore  string `json:"scoreT" gorm:"column:t_score"`
+	TLevel1 string `json:"T_lev1" gorm:"column:t_lev1"`
+	TLevel2 string `json:"T_lev2" gorm:"column:t_lev2"`
+	TScore  string `json:"T_score" gorm:"column:t_score"`
 }
 
 type Parsing struct {

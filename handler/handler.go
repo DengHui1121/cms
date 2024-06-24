@@ -979,9 +979,10 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 			case "A":
 				var responseBody mod.AlgorithmRepBodyA
 				resp, err := client.R().SetHeader("Content-Type", "application/json").SetBody(postBody).SetResult(&responseBody).Post(algorithm.Url)
+				fmt.Println(resp.Body())
 				if err != nil {
 					tx.Rollback()
-					err = errors.New("算法请求发起失败")
+					err = errors.New("算法请求发起失败" + err.Error())
 					ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时 ")
 					return err
 				} else {
@@ -1077,11 +1078,13 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 							aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(3, partType, "T", aler.Location)
 							alerts = append(alerts, aler)
 						}
-
-						if err = tx.Table("alert").Create(&alerts).Error; err != nil {
-							tx.Rollback()
-							err = errors.New("报警表单新增记录失败")
-							ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时 ")
+						if len(alerts) > 0 {
+							// 插入报警表
+							if err = tx.Table("alert").Create(&alerts).Error; err != nil {
+								tx.Rollback()
+								err = errors.New("报警表单新增记录失败")
+								ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时 ")
+							}
 						}
 					} else if responseBody.Success == "False" && responseBody.Error == "0" {
 						tx.Rollback()
