@@ -12,6 +12,7 @@ require (
 	github.com/goburrow/modbus v0.1.0
 	github.com/goburrow/serial v0.1.0
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
+	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/jinzhu/now v1.1.5 // indirect

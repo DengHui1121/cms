@@ -61,18 +61,19 @@ func Login(c echo.Context) error {
 	} else {
 		var existuser mod.User
 		ra := db.Table("user").Where("username =?", mm.Username).
-			Select("id", "username", "password", "level").
+			Select("id", "username", "password", "level", "windfarm_ids_str").
 			Scan(&existuser).RowsAffected
 		if ra == 0 {
 			err = errors.New("wrong username")
-			ErrNil(c, returnData, err, "账号名错误")
+			ErrCheck(c, returnData, err, "账号名错误")
 			return err
 		}
 		if existuser.Password != mm.Password {
 			err = errors.New("wrong password")
-			ErrNil(c, returnData, err, "密码错误")
+			ErrCheck(c, returnData, err, "密码错误")
 			return err
 		}
+		existuser.WindfarmIdsStrToArr()
 		ErrNil(c, returnData, mod.PublicUser{User: &existuser}, "登录成功")
 		return err
 	}
@@ -94,11 +95,16 @@ func UserOption(c echo.Context) error {
 
 	switch opt {
 	case "info":
-		if existuser.Password != mm.Password {
-			err = db.Table("user").Where("id=?", mm.ID).Clauses(clause.Locking{Strength: "UPDATE"}).Update("password", mm.Password).Error
-		} else {
-			err = errors.New("password wrong")
-			ErrCheck(c, returnData, err, "密码与原密码相同")
+		updatesMap := make(map[string]interface{})
+		mm.WindfarmIdsArrToStr()
+		updatesMap["windfarm_ids_str"] = mm.WindfarmIdsStr
+
+		if mm.Password != "" {
+			updatesMap["password"] = mm.Password
+		}
+		if err = db.Table("user").Where("id=?", mm.ID).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Updates(updatesMap).Error; err != nil {
+			ErrCheck(c, returnData, err, "修改错误")
 			return err
 		}
 	case "add":
@@ -108,7 +114,7 @@ func UserOption(c echo.Context) error {
 			return err
 		}
 		ra := db.Table("user").Where("username =?", mm.Username).
-			Select("id", "username", "password", "level").
+			Select("id", "username", "password", "level", "windfarm_ids_str").
 			Scan(&existuser).RowsAffected
 		if ra == 0 {
 			err = db.Table("user").Create(&mm).Error
@@ -127,9 +133,10 @@ func UserOption(c echo.Context) error {
 		var publicuserlist []mod.PublicUser
 
 		err = db.Table("user").Where("level > ?", l).
-			Select("id", "username", "level").
+			Select("id", "username", "level", "windfarm_ids_str").
 			Scan(&userlist).Error
 		for k := range userlist {
+			userlist[k].WindfarmIdsStrToArr()
 			publicuserlist = append(publicuserlist, mod.PublicUser{User: &userlist[k]})
 		}
 		f = publicuserlist
@@ -225,14 +232,22 @@ func StdUpdate(c echo.Context) error {
 // * api/v1/structure
 func FindAll(c echo.Context) error {
 	var err error
+	uid := c.QueryParam("uid")
+	var user mod.User
+	if uid != "" {
+		db.Model(&mod.User{}).Where("id = ? ", uid).Find(&user)
+	}
 	returnData := mod.ReturnData{}
+	if user.WindfarmIdsStr == "" && user.Level == 3 {
+		ErrNil(c, returnData, []int{}, "查询成功")
+		return nil
+	}
 	var f []mod.Factory
 	err = db.Table("factory").Preload("Windfarms.Machines.Parts.Points").Find(&f).Error
 	if err != nil {
 		ErrCheck(c, returnData, err, c.Request().URL.String()+" 查找信息失败")
 		return err
 	}
-
 	for _, v := range f {
 		for _, wv := range v.Windfarms {
 			for _, mv := range wv.Machines {
@@ -264,7 +279,14 @@ func FindAll(c echo.Context) error {
 			}
 		}
 	}
-	err = db.Table("factory").Preload("Windfarms.Machines.Parts.Points").Find(&f).Error
+	if user.WindfarmIdsStr != "" {
+		err = db.Table("factory").Find(&f).Error
+		for i, factory := range f {
+			err = db.Table("windfarm").Where(fmt.Sprintf("windfarm.id in (%s) AND windfarm.factory_uuid = '%s'", user.WindfarmIdsStr, factory.UUID)).Preload("Machines.Parts.Points").Find(&f[i].Windfarms).Error
+		}
+	} else {
+		err = db.Table("factory").Preload("Windfarms.Machines.Parts.Points").Find(&f).Error
+	}
 	if err != nil {
 		ErrCheck(c, returnData, err, c.Request().URL.String()+" 查找信息失败")
 		return err
@@ -278,6 +300,11 @@ func FindTree(c echo.Context) error {
 	var err error
 	returnData := mod.ReturnData{}
 	id := c.QueryParam("id")
+	uid := c.QueryParam("uid")
+	var user mod.User
+	if uid != "" {
+		db.Model(&mod.User{}).Where("id = ? ", uid).Find(&user)
+	}
 	i := c.Param("type")
 	var f interface{}
 	switch i {
@@ -295,8 +322,17 @@ func FindTree(c echo.Context) error {
 		}
 	case "windFields":
 		var ff mod.Factory
-		err = db.Table("factory").Omit("created_at", "updated_at").Preload(clause.Associations).
-			Find(&ff, id).Error
+		db2 := db.Table("factory").Omit("created_at", "updated_at")
+		if user.WindfarmIdsStr == "" && user.Level == 3 {
+			ErrNil(c, returnData, []int{}, "查询成功")
+			return nil
+		}
+		if user.WindfarmIdsStr != "" {
+			db2.Preload("Windfarms", fmt.Sprintf("windfarm.id IN (%s)", user.WindfarmIdsStr))
+		} else {
+			db2.Preload(clause.Associations)
+		}
+		err = db2.Find(&ff, id).Error
 		f = ff.Windfarms
 	case "windField":
 		var ff mod.Windfarm2
@@ -348,8 +384,15 @@ func FindTree(c echo.Context) error {
 		f = t
 	case "fans":
 		var ff mod.Windfarm
-		err = db.Table("windfarm").Omit("created_at", "updated_at").Preload(clause.Associations).
-			Find(&ff, id).Error
+		if user.WindfarmIdsStr == "" && user.Level == 3 {
+			ErrNil(c, returnData, []int{}, "查询成功")
+			return nil
+		}
+		db3 := db.Table("windfarm").Omit("created_at", "updated_at")
+		if user.WindfarmIdsStr != "" {
+			db3 = db.Where(fmt.Sprintf("windfarm.id in (%s)", user.WindfarmIdsStr))
+		}
+		err = db3.Preload(clause.Associations).Find(&ff, id).Error
 		f = ff.Machines
 	case "fan":
 		var ff mod.Machine
@@ -550,20 +593,35 @@ func FindInfo(c echo.Context) error {
 	var dst interface{}
 	var table string
 	var err error
+	uid := c.QueryParam("uid")
 	returnData := mod.ReturnData{}
 	i := c.Param("type")
+	var user mod.User
+	if uid != "" {
+		db.Model(&mod.User{}).Where("id = ? ", uid).Find(&user)
+	}
 	var midDB *gorm.DB
+
 	switch i {
 	case "company":
 		dst = new([]mod.Factory)
 		table = "factory"
 		midDB = db.Table(table)
+		if user.WindfarmIdsStr == "" && user.Level == 3 {
+			ErrNil(c, returnData, []int{}, "成功查找")
+			return nil
+		}
+		if user.WindfarmIdsStr != "" {
+			midDB = midDB.Preload(clause.Associations, fmt.Sprintf("windfarm.id in (%s)", user.WindfarmIdsStr))
+		} else {
+			midDB = midDB.Preload(clause.Associations)
+		}
 	case "windFields":
 		dst = new([]mod.Windfarm2)
 		table = "windfarm"
 		midDB = db.Table(table).Joins("left join factory on factory.uuid = windfarm.factory_uuid").Select("windfarm.*, factory.id factoryId, factory.name factoryName")
 	}
-	err = midDB.Omit("created_at", "updated_at").Preload(clause.Associations).Find(dst).Error
+	err = midDB.Omit("created_at", "updated_at").Find(dst).Error
 	if err != nil {
 		ErrCheck(c, returnData, err, c.Request().URL.String()+" 查找信息失败")
 		return err
@@ -1651,7 +1709,7 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 
 	// 首先查询出所有数据
 	var algorithmResultA []mod.AlgorithmResultA
-	if err = db.Table("point").Select("a.*").Joins(fmt.Sprintf("left join data_%d data on data.point_uuid = point.uuid", fanId)).
+	if err = db.Table("point").Select("a.*,data.time_set as timeSet").Joins(fmt.Sprintf("left join data_%d data on data.point_uuid = point.uuid", fanId)).
 		Joins("left join algorithm_result_a a on a.data_uuid = data.uuid").Where("point.id = ? and a.algorithm_id = ? AND create_time BETWEEN ? AND ?", pointId, algorithmId, startTime, endTime).
 		Find(&algorithmResultA).Error; err != nil {
 		mainlog.Error("获取算法错误")
@@ -1678,7 +1736,7 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 				res.EigenValuePlot.TypiFeature.SecGravFre = append(res.EigenValuePlot.TypiFeature.SecGravFre, value.SecGravFre)
 				res.EigenValuePlot.TypiFeature.GravRatio = append(res.EigenValuePlot.TypiFeature.GravRatio, value.GravRatio)
 				res.EigenValuePlot.TypiFeature.StandDeviate = append(res.EigenValuePlot.TypiFeature.StandDeviate, value.StandDeviate)
-				res.EigenValuePlot.XAxis = append(res.EigenValuePlot.XAxis, value.CreateTime)
+				res.EigenValuePlot.XAxis = append(res.EigenValuePlot.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
 			}
 		} else {
 			res.TimePlot.TScore = emptyFloat
@@ -1704,7 +1762,7 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 					res.TLev1 = value.TLevel1
 					res.TLev2 = value.TLevel2
 					res.TScore = append(res.TScore, value.TScore)
-					res.XAxis = append(res.XAxis, value.CreateTime)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
 				}
 			} else {
 				res.TScore = emptyFloat
@@ -1719,7 +1777,7 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 					res.FLev1 = value.FLevel1
 					res.FLev2 = value.FLevel2
 					res.FScore = append(res.FScore, value.FScore)
-					res.XAxis = append(res.XAxis, value.CreateTime)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
 				}
 			} else {
 				res.FScore = emptyFloat
@@ -1736,7 +1794,7 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 					res.TypiFeature.SecGravFre = append(res.TypiFeature.SecGravFre, value.SecGravFre)
 					res.TypiFeature.GravRatio = append(res.TypiFeature.GravRatio, value.GravRatio)
 					res.TypiFeature.StandDeviate = append(res.TypiFeature.StandDeviate, value.StandDeviate)
-					res.XAxis = append(res.XAxis, value.CreateTime)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
 				}
 			} else {
 				res.TypiFeature.MeanFre = emptyFloat
@@ -1745,6 +1803,78 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 				res.TypiFeature.SecGravFre = emptyFloat
 				res.TypiFeature.GravRatio = emptyFloat
 				res.TypiFeature.StandDeviate = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "meanfre":
+			var res mod.MeanFrePlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.MeanFres = append(res.MeanFres, value.MeanFre)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
+				}
+			} else {
+				res.MeanFres = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "squarefre":
+			var res mod.SquareFrePlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.SquareFres = append(res.SquareFres, value.SquareFre)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
+				}
+			} else {
+				res.SquareFres = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "gravfre":
+			var res mod.GravFrePlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.GravFres = append(res.GravFres, value.GravFre)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
+				}
+			} else {
+				res.GravFres = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "secgravfre":
+			var res mod.SecGravFrePlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.SecGravFres = append(res.SecGravFres, value.SecGravFre)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
+				}
+			} else {
+				res.SecGravFres = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "gravratio":
+			var res mod.GravRatioPlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.GravRatios = append(res.GravRatios, value.GravRatio)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
+				}
+			} else {
+				res.GravRatios = emptyFloat
+				res.XAxis = emptyString
+			}
+			ErrNil(c, returnData, res, "调取数据成功")
+		case "standdeviate":
+			var res mod.StandDeviatePlot
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.StandDeviates = append(res.StandDeviates, value.StandDeviate)
+					res.XAxis = append(res.XAxis, mod.TimetoStr(value.DataTimeSet).Format("2006-01-02 15:04:05"))
+				}
+			} else {
+				res.StandDeviates = emptyFloat
 				res.XAxis = emptyString
 			}
 			ErrNil(c, returnData, res, "调取数据成功")

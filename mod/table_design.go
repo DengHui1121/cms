@@ -16,11 +16,33 @@ import (
 )
 
 type User struct {
-	ID       uint   `gorm:"primarykey" json:"id,string"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Level    uint8  `json:"level"` //1：元账号 2：系统账号 3：访客账号
+	ID             uint   `gorm:"primarykey" json:"id,string"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	Level          uint8  `json:"level"` //1：元账号 2：系统账号 3：访客账号
+	WindfarmIdsStr string `json:"-" gorm:"column:windfarm_ids_str;type:varchar(255);comment:风场id(,分割)"`
+	WindfarmIds    []int  `json:"windfarmIds" gorm:"-"`
 }
+
+func (u *User) WindfarmIdsArrToStr() {
+	var strArr []string
+	for _, id := range u.WindfarmIds {
+		strArr = append(strArr, strconv.Itoa(id))
+	}
+	u.WindfarmIdsStr = strings.Join(strArr, ",")
+}
+
+func (u *User) WindfarmIdsStrToArr() {
+	split := strings.Split(u.WindfarmIdsStr, ",")
+	u.WindfarmIds = []int{} // 清空之前的数组
+	for _, s := range split {
+		id, err := strconv.Atoi(s)
+		if err == nil {
+			u.WindfarmIds = append(u.WindfarmIds, id)
+		}
+	}
+}
+
 type PublicUser struct {
 	*User              // 匿名嵌套
 	Password *struct{} `json:"password,omitempty"`
@@ -1468,6 +1490,36 @@ type EigenValuePlot struct {
 	XAxis       []string        `json:"x_axis"`
 }
 
+type MeanFrePlot struct {
+	MeanFres []float64 `json:"score"`
+	XAxis    []string  `json:"x_axis"`
+}
+
+type SquareFrePlot struct {
+	SquareFres []float64 `json:"score"`
+	XAxis      []string  `json:"x_axis"`
+}
+
+type GravFrePlot struct {
+	GravFres []float64 `json:"score"`
+	XAxis    []string  `json:"x_axis"`
+}
+
+type SecGravFrePlot struct {
+	SecGravFres []float64 `json:"score"`
+	XAxis       []string  `json:"x_axis"`
+}
+
+type GravRatioPlot struct {
+	GravRatios []float64 `json:"score"`
+	XAxis      []string  `json:"x_axis"`
+}
+
+type StandDeviatePlot struct {
+	StandDeviates []float64 `json:"score"`
+	XAxis         []string  `json:"x_axis"`
+}
+
 // A类算法画图
 type AlgorithmPlotA struct {
 	TimePlot       TimePlot       `json:"time"`
@@ -1494,10 +1546,11 @@ type AlgorithmResultA struct {
 	FTendencyFloat
 	TTendencyFloat
 	TypiFeature
-	DataTime   string `json:"dataTime" gorm:"column:data_time"`
-	CreateTime string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
-	UpdateTime string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
-	IsDel      bool   `json:"isDel" gorm:"is_del"`
+	DataTimeSet int64  `json:"-" gorm:"column:timeSet"`
+	DataTime    string `json:"dataTime" gorm:"column:data_time"`
+	CreateTime  string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
+	UpdateTime  string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
+	IsDel       bool   `json:"isDel" gorm:"is_del"`
 }
 
 func (*AlgorithmResultA) TableName() string {
@@ -1525,7 +1578,7 @@ type TypiFeature struct {
 	GravFre      float64 `json:"gravfre" gorm:"column:grav_fre"`           //频谱重心
 	SecGravFre   float64 `json:"secgravfre" gorm:"column:sec_grav_fre"`    //二阶重心
 	GravRatio    float64 `json:"gravratio" gorm:"column:grav_ratio"`       //重心比
-	StandDeviate float64 `json:"standdeviate" gorm:"column:stand_deviate"` //标准偏差`                       //标准偏差频率
+	StandDeviate float64 `json:"standdeviate" gorm:"column:stand_deviate"` //标准偏差
 }
 
 // A类算法调用响应体
