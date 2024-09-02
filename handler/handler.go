@@ -108,6 +108,7 @@ func UserOption(c echo.Context) error {
 			return err
 		}
 	case "add":
+		mm.WindfarmIdsArrToStr()
 		if mm.Level == 0 || mm.Password == "" || mm.Username == "" {
 			err = errors.New("missing information")
 			ErrCheck(c, returnData, nil, "账号信息不完整")
@@ -123,9 +124,7 @@ func UserOption(c echo.Context) error {
 			ErrCheck(c, returnData, err, "已有该账号名")
 			return err
 		}
-
 	case "delete":
-
 		err = db.Table("user").Unscoped().Delete(&mod.User{}, mm.ID).Error
 	case "list":
 		l := c.QueryParam("level")
@@ -619,7 +618,15 @@ func FindInfo(c echo.Context) error {
 	case "windFields":
 		dst = new([]mod.Windfarm2)
 		table = "windfarm"
-		midDB = db.Table(table).Joins("left join factory on factory.uuid = windfarm.factory_uuid").Select("windfarm.*, factory.id factoryId, factory.name factoryName")
+		midDB = db.Table(table)
+		if user.WindfarmIdsStr == "" && user.Level == 3 {
+			ErrNil(c, returnData, []int{}, "成功查找")
+			return nil
+		}
+		if user.WindfarmIdsStr != "" {
+			midDB = midDB.Where(fmt.Sprintf("windfarm.id in (%s)", user.WindfarmIdsStr))
+		}
+		midDB = midDB.Joins("left join factory on factory.uuid = windfarm.factory_uuid").Select("windfarm.*, factory.id factoryId, factory.name factoryName")
 	}
 	err = midDB.Omit("created_at", "updated_at").Find(dst).Error
 	if err != nil {
@@ -1264,8 +1271,13 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 					}
 				}
 			}
+			tx.Commit()
+			//if err = algorithm.ExecuteAlgorithm(&pdata, db, fid); err != nil {
+			//	ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时，执行算法异常")
+			//	return err
+			//}
+
 		}
-		tx.Commit()
 
 		ErrNil(c, returnData, false, "导入数据成功。")
 		return nil
@@ -1607,6 +1619,48 @@ func DataPlot(c echo.Context) error {
 				ErrCheck(c, returnData, err, "趋势图调取数据错误")
 				return err
 			}
+		} else if ctype == "time" {
+			var res mod.TimePlot
+			var algorithmResultA []mod.AlgorithmResultA
+			if err = db.Select("ara.*").Table(fmt.Sprintf("data_%s data", fid)).
+				Joins("LEFT JOIN algorithm_result_a ara ON ara.data_uuid = data.uuid").
+				Where("data.id = ?", id).Find(&algorithmResultA).Error; err != nil {
+				ErrCheck(c, returnData, err, "调取数据失败")
+			}
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.TLev1 = value.TLevel1
+					res.TLev2 = value.TLevel2
+					res.TScore = append(res.TScore, value.TScore)
+					res.XAxis = append(res.XAxis, value.DataTime)
+				}
+			} else {
+				res.TScore = emptyFloat
+				res.XAxis = emptyString
+			}
+			plot.Time = res
+		} else if ctype == "frequency" {
+			var res mod.FrequencyPlot
+
+			var algorithmResultA []mod.AlgorithmResultA
+			if err = db.Select("ara.*").Table(fmt.Sprintf("data_%s data", fid)).
+				Joins("LEFT JOIN algorithm_result_a ara ON ara.data_uuid = data.uuid").
+				Where("data.id = ?", id).Find(&algorithmResultA).Error; err != nil {
+				ErrCheck(c, returnData, err, "调取数据失败")
+			}
+			if len(algorithmResultA) > 0 {
+				for _, value := range algorithmResultA {
+					res.FLev1 = value.FLevel1
+					res.FLev2 = value.FLevel2
+					res.FScore = append(res.FScore, value.FScore)
+					res.XAxis = append(res.XAxis, value.DataTime)
+
+				}
+			} else {
+				res.FScore = emptyFloat
+				res.XAxis = emptyString
+			}
+			plot.Frequency = res
 		} else if ctype != "" {
 			err = plot.CPlot(db, tableprefix, fid, id, ctype)
 			if err != nil {
@@ -1649,6 +1703,10 @@ func GetFanDataCurrentPlot(c echo.Context) error {
 	fid := c.QueryParam("id")       //风机id
 	ptype := c.QueryParam("type")   //测点id
 	models := c.QueryParam("model") //算法模型
+	startTime := c.QueryParam("startTime")
+	endTime := c.QueryParam("endTime")
+	startTimeSet, _ := mod.StrtoTime("2006-01-02 15:04:05", startTime)
+	endTimeSet, _ := mod.StrtoTime("2006-01-02 15:04:05", endTime)
 	var m mod.MultiDatatoPlot
 	m.Currentplot = make([]mod.CurrentPlot, 0)
 	//找测点和限制条件，填充m
@@ -1658,7 +1716,7 @@ func GetFanDataCurrentPlot(c echo.Context) error {
 		Where("machine.id=?", fid).Where("point.id=?", ptype).
 		Select("point.id AS point_id , point.name AS legend").
 		Scan(&m.Currentplot)
-	if err = m.FanStaticPlot(db, models, fid); err != nil {
+	if err = m.FanStaticPlot(db, models, fid, startTimeSet, endTimeSet); err != nil {
 		ErrCheck(c, returnData, err, "调取数据错误")
 		return err
 	}
@@ -1710,7 +1768,7 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 	// 首先查询出所有数据
 	var algorithmResultA []mod.AlgorithmResultA
 	if err = db.Table("point").Select("a.*,data.time_set as timeSet").Joins(fmt.Sprintf("left join data_%d data on data.point_uuid = point.uuid", fanId)).
-		Joins("left join algorithm_result_a a on a.data_uuid = data.uuid").Where("point.id = ? and a.algorithm_id = ? AND create_time BETWEEN ? AND ?", pointId, algorithmId, startTime, endTime).
+		Joins("left join algorithm_result_a a on a.data_uuid = data.uuid").Where("point.id = ? and a.algorithm_id = ? AND data_time >= ? <= ?", pointId, algorithmId, startTime, endTime).
 		Find(&algorithmResultA).Error; err != nil {
 		mainlog.Error("获取算法错误")
 		ErrCheck(c, returnData, err, "调取数据错误")
@@ -1920,7 +1978,7 @@ func GetFanDataCurrentAlgorithmPlotB(c echo.Context) (err error) {
 	//查询所有原始数据
 	var algorithmResultB []mod.AlgorithmResultB
 	if err = db.Table("point").Select("b.*").Joins(fmt.Sprintf("left join data_%d data on data.point_uuid = point.uuid", fanId)).
-		Joins("left join algorithm_result_b b on b.data_uuid = data.uuid").Where("point.id = ? and b.algorithm_id = ? AND create_time BETWEEN ? AND ?", pointId, algorithmId, startTime, endTime).
+		Joins("left join algorithm_result_b b on b.data_uuid = data.uuid").Where("point.id = ? and b.algorithm_id = ? AND data_time  ? AND ?", pointId, algorithmId, startTime, endTime).
 		Find(&algorithmResultB).Error; err != nil {
 		mainlog.Error("获取算法错误")
 		ErrCheck(c, returnData, err, "调取数据错误")
@@ -2897,7 +2955,7 @@ func AddAlgorithmHandler(c echo.Context) (err error) {
 		return err
 	}
 
-	if err = db.Table("algorithm").Where("name =?", algorithm.Name).Find(&algorithmDTO).Error; err != nil {
+	if err = db.Table("algorithm").Where("name = ? and is_del = false", algorithm.Name).Find(&algorithmDTO).Error; err != nil {
 		mainlog.Error("新增算法时，查重失败 %v", err)
 		ErrCheck(c, returnData, err, "新增算法时，查重失败")
 		return err
@@ -2911,7 +2969,8 @@ func AddAlgorithmHandler(c echo.Context) (err error) {
 
 	algorithm.CreateTime = mod.GetCurrentTime()
 	algorithm.UpdateTime = mod.GetCurrentTime()
-
+	algorithm.StartTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", algorithm.StartTime)
+	algorithm.EndTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", algorithm.EndTime)
 	if strings.Contains(algorithm.Name, "时频残差") {
 		algorithm.Type = "A"
 	} else if strings.Contains(algorithm.Name, "故障类型") {
@@ -2963,7 +3022,7 @@ func UpdateAlgorithmHandler(c echo.Context) (err error) {
 		return err
 	}
 	//更新前名字查重判断
-	if err = db.Table("algorithm").Where("name = ? and id != ?", algorithm.Name, algorithm.Id).Find(&algorithm2).Error; err != nil {
+	if err = db.Table("algorithm").Where("name = ? and id != ? and is_del =false", algorithm.Name, algorithm.Id).Find(&algorithm2).Error; err != nil {
 		mainlog.Error("更新算法时，查重失败 %v", err)
 		ErrCheck(c, returnData, err, "更新算法时，查重失败")
 		return err
@@ -2975,7 +3034,9 @@ func UpdateAlgorithmHandler(c echo.Context) (err error) {
 		return err
 	}
 	algorithm.UpdateTime = mod.GetCurrentTime()
-	if err = db.Table("algorithm").Select("enabled").Where("id = ?", algorithm.Id).Save(&algorithm).Error; err != nil {
+	algorithm.StartTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", algorithm.StartTime)
+	algorithm.EndTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", algorithm.EndTime)
+	if err = db.Table("algorithm").Where("id = ?", algorithm.Id).Save(&algorithm).Error; err != nil {
 		mainlog.Error("更新算法失败 %v", err)
 		ErrCheck(c, returnData, err, "更新算法失败")
 		return err
@@ -3025,7 +3086,10 @@ func GetAlgorithmListHandler(c echo.Context) (err error) {
 		ErrCheck(c, returnData, err, "获取算法失败")
 		return err
 	}
-
+	for i, algorithm := range res.List {
+		res.List[i].StartTime = time.Unix(algorithm.StartTimeSet, 0).Format("2006-01-02 15:04:05")
+		res.List[i].EndTime = time.Unix(algorithm.EndTimeSet, 0).Format("2006-01-02 15:04:05")
+	}
 	ErrNil(c, returnData, res, "获取算法成功")
 	return
 }
@@ -3049,6 +3113,114 @@ func GetAlgorithmListByPointUUIDHandler(c echo.Context) (err error) {
 	}
 
 	ErrNil(c, returnData, res, "获取解析方式成功")
+	return
+}
+
+// 启动算法
+func StartAlgorithmHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	var algorithm mod.Algorithm
+	algorithmIdStr := c.QueryParam("id")
+	if algorithm.Id, err = strconv.Atoi(algorithmIdStr); err != nil {
+		mainlog.Error("id string转int失败 %v", err)
+		ErrCheck(c, returnData, err, c.Request().URL.String()+" id解析失败")
+		return
+	}
+	// 查找算法相关参数
+	if err = db.Table("algorithm").Where("id = ?", algorithm.Id).Find(&algorithm).Error; err != nil {
+		mainlog.Error("获取算法失败 %v", err)
+		ErrCheck(c, returnData, err, "获取算法失败")
+		return
+	}
+	// 查找测点所属风机，组建data表名
+	var machine mod.Machine
+	if err = db.Table("point").Joins("RIGHT JOIN part ON part.uuid = point.part_uuid").
+		Joins("RIGHT JOIN machine on machine.uuid = part.machine_uuid").Select("machine.*").Where("point.uuid = ?", algorithm.PointUUID).
+		Find(&machine).Error; err != nil {
+		ErrCheck(c, returnData, err, "获取测点所属风机失败")
+		return
+	}
+
+	dataTableName := fmt.Sprintf("data_%d", machine.ID)
+	waveTableName := fmt.Sprintf("wave_%d", machine.ID)
+	// 查找所有未执行预警算法的数据 is_predicted
+
+	var dataList []mod.Data
+	if err = db.Table(dataTableName).Where("point_uuid = ? AND time_set >= ? AND time_set <= ? AND is_predicted = false", algorithm.PointUUID, algorithm.StartTimeSet, algorithm.EndTimeSet).Find(&dataList).Error; err != nil {
+		mainlog.Error("获取数据失败 %v", err)
+		ErrCheck(c, returnData, err, "获取数据失败")
+		return
+	}
+	for i := range dataList {
+		// 查找原始数据
+		if err = db.Table(waveTableName).Where("data_uuid = ?", dataList[i].UUID).Find(&dataList[i].Wave).Error; err != nil {
+			mainlog.Error("获取原始数据失败 %v", err)
+			ErrCheck(c, returnData, err, "获取原始数据失败")
+			return
+		}
+
+		//dataList[i].Wave.DataString = strings.Trim(string(dataList[i].Wave.File), " ")
+		// 执行算法
+		if err = algorithm.ExecuteAlgorithm(&dataList[i], db, strconv.Itoa(int(machine.ID))); err != nil {
+			mainlog.Error("执行算法失败 %v", err)
+			ErrCheck(c, returnData, err, "执行算法失败")
+			return
+		}
+	}
+	ErrNil(c, returnData, nil, "启动算法成功")
+	return
+}
+func GetHistoryByIdHandler(c echo.Context) (err error) {
+	var returnData mod.ReturnData
+	idStr := c.Param("id")
+	pageSizeStr := c.QueryParam("pageSize")
+	if pageSizeStr == "" {
+		pageSizeStr = "99999"
+	}
+	pageNumStr := c.QueryParam("pageNum")
+	if pageNumStr == "" {
+		pageNumStr = "1"
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		mainlog.Error("pageSize转换失败 %v", err)
+		ErrCheck(c, returnData, err, "pageSize转换失败")
+		return
+	}
+	pageNum, err := strconv.Atoi(pageNumStr)
+	if err != nil {
+		mainlog.Error("pageNum转换失败 %v", err)
+		ErrCheck(c, returnData, err, "pageNum转换失败")
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	var algorithm mod.Algorithm
+	if db.Model(&mod.Algorithm{}).Where("id = ? AND is_del = false", id).Find(&algorithm).RowsAffected <= 0 {
+		ErrCheck(c, returnData, nil, "算法不存在")
+		return
+	}
+	res := struct {
+		List  interface{} `json:"list"`
+		Total int64       `json:"total"`
+	}{}
+	var tableName string
+	switch algorithm.Type {
+	case "A":
+		tableName = "algorithm_result_a"
+		res.List = []mod.AlgorithmResultA{}
+	case "B":
+		tableName = "algorithm_result_b"
+		res.List = []mod.AlgorithmResultB{}
+	}
+	if err = db.Table(tableName).Where("algorithm_id = ? AND is_del = false", algorithm.Id).Count(&res.Total).Error; err != nil {
+		ErrCheck(c, returnData, nil, "获取算法历史执行记录失败")
+		return
+	}
+	if err = db.Table(tableName).Where("algorithm_id = ? AND is_del = false", algorithm.Id).Order("id DESC ").Offset(pageSize * (pageNum - 1)).Limit(pageSize).Find(&res.List).Error; err != nil {
+		ErrCheck(c, returnData, nil, "获取算法结果失败")
+		return
+	}
+	ErrNil(c, returnData, res, "获取算法历史执行记录成功")
 	return
 }
 

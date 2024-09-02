@@ -25,6 +25,9 @@ type User struct {
 }
 
 func (u *User) WindfarmIdsArrToStr() {
+	if len(u.WindfarmIds) < 1 {
+		return
+	}
 	var strArr []string
 	for _, id := range u.WindfarmIds {
 		strArr = append(strArr, strconv.Itoa(id))
@@ -606,9 +609,11 @@ type Data struct {
 	Pitch2        float32 `json:"pitch2"`                                                        //浆角2
 	Pitch3        float32 `json:"pitch3"`                                                        //浆角3
 	Tag           string  `json:"tag"`                                                           //故障标签
+	IsPredicted   bool    `json:"predict" gorm:"column:is_predicted; comment:是否执行算法; type:tinyint(1); default:0"`
 	Result        `json:"result" gorm:"embedded"`
-	Wave          Wave    `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
-	Alert         []Alert `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
+	Wave          Wave             `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
+	Alert         []Alert          `json:"-" gorm:"foreignKey:DataUUID;references:UUID"`
+	ResultA       AlgorithmResultA `json:"resultA" gorm:"-"`
 }
 
 func (u *Data) AfterFind(tx *gorm.DB) error {
@@ -797,10 +802,12 @@ type AnalysetoPlot struct {
 
 // 单测点数据绘图
 type DatatoPlot struct {
-	Originplot  SinglePlot  `json:"origin"`
-	Resultplot  SinglePlot  `json:"result"`
-	Currentplot CurrentPlot `json:"current"`
-	Data        Data        `json:"data"`
+	Originplot  SinglePlot    `json:"origin"`
+	Resultplot  SinglePlot    `json:"result"`
+	Currentplot CurrentPlot   `json:"current"`
+	Data        Data          `json:"data"`
+	Time        TimePlot      `json:"time"`
+	Frequency   FrequencyPlot `json:"frequency"`
 }
 
 // 对比图
@@ -809,14 +816,15 @@ type MultiDatatoPlot struct {
 }
 
 type CurrentPlot struct {
-	PointId string    `json:"point_id"`
-	Limit   Limit     `json:"limit" gorm:"-"`
-	Legend  string    `json:"legend"`
-	IDaxis  []string  `json:"id," gorm:"-"`
-	Xaxis   []string  `json:"x" gorm:"-"`
-	Yaxis   []float32 `json:"y" gorm:"-"`
-	Xunit   string    `json:"x_unit"`
-	Yunit   string    `json:"y_unit"`
+	ResultA AlgorithmPlotA `json:"resultA"`
+	PointId string         `json:"point_id"`
+	Limit   Limit          `json:"limit" gorm:"-"`
+	Legend  string         `json:"legend"`
+	IDaxis  []string       `json:"id," gorm:"-"`
+	Xaxis   []string       `json:"x" gorm:"-"`
+	Yaxis   []float32      `json:"y" gorm:"-"`
+	Xunit   string         `json:"x_unit"`
+	Yunit   string         `json:"y_unit"`
 }
 
 type Temp struct {
@@ -858,6 +866,7 @@ type Data_Update struct {
 	Pitch2        float32 `json:"pitch2"`
 	Pitch3        float32 `json:"pitch3"`
 	Tag           string  `json:"tag"`
+	IsPredicted   bool    `json:"predict" gorm:"column:is_predicted; comment:是否执行算法; type:tinyint(1); default:0"`
 	Result        `json:"result" gorm:"embedded"`
 	TypiFeature
 }
@@ -1371,16 +1380,22 @@ type AlgorithmStatistic struct {
 }
 
 type Algorithm struct {
-	Id         int64  `json:"id" gorm:"id"`
-	Name       string `json:"name" gorm:"name; comment:预警算法名"`
-	Url        string `json:"url" gorm:"column:url; comment:预警算法url"`
-	PointUUID  string `json:"point_uuid" gorm:"column:point_uuid"`
-	Type       string `json:"type" gorm:"column:type;comment:算法类型"`
-	Enabled    bool   `json:"status" gorm:"column:enabled; type:tinyint(1);comment:是否启用;default:1"`
-	BuiltTime  string `json:"builtTime" gorm:"column:built_time; comment:投运时间"`
-	CreateTime string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
-	UpdateTime string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
-	IsDel      bool   `json:"isDel" gorm:"column:is_del;default:0"`
+	Id           int    `json:"id" gorm:"id"`
+	Name         string `json:"name" gorm:"name; comment:预警算法名"`
+	Url          string `json:"url" gorm:"column:url; comment:预警算法url"`
+	WindfarmUUID string `json:"windfarmUUID" gorm:"column:windfarm_uuid; comment:风场uuid"`
+	PointUUID    string `json:"point_uuid" gorm:"column:point_uuid"`
+	Type         string `json:"type" gorm:"column:type;comment:算法类型"`
+	Enabled      bool   `json:"status" gorm:"column:enabled; type:tinyint(1);comment:是否启用;default:1"`
+	StartTimeSet int64  `json:"-" gorm:"column:start_timeset; comment:开始时间戳"`
+	StartTime    string `json:"startTime" gorm:"-"`
+	EndTimeSet   int64  `json:"-" gorm:"column:end_timeset; comment:结束时间戳"`
+	EndTime      string `json:"endTime" gorm:"-"`
+	LastExecTime string `json:"lastExecTime" gorm:"column:last_exec_time; comment:上次执行时间"`
+	BuiltTime    string `json:"builtTime" gorm:"column:built_time; comment:投运时间"`
+	CreateTime   string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
+	UpdateTime   string `json:"updateTime" gorm:"column:update_time; comment:更新时间"`
+	IsDel        bool   `json:"isDel" gorm:"column:is_del;default:0"`
 }
 
 func (Algorithm) TableName() string {
@@ -1403,7 +1418,7 @@ func (f *TTendencyString) Translate() (res TTendencyFloat) {
 type AlgorithmResultB struct {
 	Id          int64  `json:"id" gorm:"id"`
 	DataUUID    string `json:"dataUUID" gorm:"data_uuid"`
-	AlgorithmID int64  `json:"algorithmId" gorm:"algorithm_id"`
+	AlgorithmID int    `json:"algorithmId" gorm:"algorithm_id"`
 	DataDTO
 	DataTime   string `json:"dataTime" gorm:"column:data_time; comment:数据时间"`
 	CreateTime string `json:"createTime" gorm:"column:create_time; comment:创建时间"`
@@ -1468,12 +1483,14 @@ type TimePlot struct {
 	TLev2  float64   `json:"lev2"`
 	TScore []float64 `json:"score"`
 	XAxis  []string  `json:"x_axis"`
+	IDAxis []float32 `json:"id_axis"`
 }
 type FrequencyPlot struct {
 	FLev1  float64   `json:"lev1"`
 	FLev2  float64   `json:"lev2"`
 	FScore []float64 `json:"score"`
 	XAxis  []string  `json:"x_axis"`
+	IDAxis []float32 `json:"id_axis"`
 }
 
 type TypiFeaturePlot struct {
@@ -1542,7 +1559,7 @@ type AlgorithmPlotB struct {
 type AlgorithmResultA struct {
 	Id          int64  `json:"id" gorm:"id"`
 	DataUUID    string `json:"dataUUID" gorm:"data_uuid"`
-	AlgorithmID int64  `json:"algorithmId" gorm:"algorithm_id"`
+	AlgorithmID int    `json:"algorithmId" gorm:"algorithm_id"`
 	FTendencyFloat
 	TTendencyFloat
 	TypiFeature
@@ -1933,4 +1950,256 @@ func (plot *DatatoPlot2) GetCommonDataPlot(db *gorm.DB, point *PointDocument, st
 	db.Table("machine").Where("id=?", fid).Pluck("unit", &plot.Resultplot.Yunit)
 	plot.Data = data
 	return
+}
+
+func (algorithm *Algorithm) ExecuteAlgorithm(data *Data, db *gorm.DB, fid string) (err error) {
+	if data.Wave.DataString == "" {
+		var originy []float32 = make([]float32, len(data.Wave.DataFloat)/4)
+		if err = Decode(data.Wave.DataFloat, &originy); err != nil {
+			err = errors.New("数据解码失败")
+			return
+		}
+		strSlice := make([]string, len(originy))
+		for i, v := range originy {
+			strSlice[i] = fmt.Sprintf("%f", v)
+		}
+
+		// 使用空格将字符串切片连接起来
+		data.Wave.DataString = strings.Join(strSlice, " ")
+	}
+
+	postBody := AlgorithmReqBody{
+		Data:       data.Wave.DataString,
+		SampleTime: time.Unix(data.TimeSet, 0).Format("2006_01_02_15:04"),
+		SampleRate: fmt.Sprintf("%dHz", data.SampleFreq),
+		Rpm:        fmt.Sprintf("%frpm", data.Rpm),
+	}
+
+	if err = db.Table("point").Select("windfarm.`desc` windfarmName, machine.`name` machineName, point.`name` pointName").Joins("left join part on part.uuid = point.part_uuid").
+		Joins("left join machine on machine.uuid= part.machine_uuid").Joins("left join windfarm on windfarm.uuid = machine.windfarm_uuid").Where("point.uuid = ?", data.PointUUID).
+		Find(&postBody).Error; err != nil {
+		err = errors.New("查询算法请求参数异常")
+		return err
+	}
+
+	switch algorithm.Type {
+	case "A":
+		return algorithm.ExecuteAlgorithmA(db, data, fid, &postBody)
+	case "B":
+		return algorithm.ExecuteAlgorithmB(db, data, fid, &postBody)
+	}
+	return
+}
+
+func (algorithm *Algorithm) ExecuteAlgorithmA(db *gorm.DB, data *Data, fid string, postBody *AlgorithmReqBody) (err error) {
+
+	responseBody := AlgorithmRepBodyA{}
+	if _, err = resty.New().R().SetHeader("Content-Type", "application/json").SetBody(postBody).SetResult(&responseBody).Post(algorithm.Url); err != nil {
+		err = errors.New("算法请求发起失败, err: " + err.Error())
+		return
+	} else {
+		if responseBody.Success == "False" {
+			err = errors.New("算法客户端运行异常")
+			return
+		}
+		if responseBody.Error != "0" {
+			err = algorithmReqErr[responseBody.Error]
+			return
+		}
+		for index, value := range responseBody.TypiFeatureSource {
+			switch index {
+			case 0:
+				data.TypiFeature.MeanFre = float64(value)
+			case 1:
+				data.TypiFeature.SquareFre = float64(value)
+			case 2:
+				data.TypiFeature.GravFre = float64(value)
+			case 3:
+				data.TypiFeature.SecGravFre = float64(value)
+			case 4:
+				data.TypiFeature.GravRatio = float64(value)
+			case 5:
+				data.TypiFeature.StandDeviate = float64(value)
+			}
+		}
+		tx := db.Begin()
+		data.IsPredicted = true
+		if err = tx.Table("data_"+fid).Omit("Wave").Where("uuid = ?", data.UUID).Updates(data).Error; err != nil {
+			tx.Rollback()
+			err = errors.New("算法执行成功，更新数据失败")
+			return
+		}
+		algorithmResult := AlgorithmResultA{
+			DataUUID:       data.UUID,
+			AlgorithmID:    algorithm.Id,
+			FTendencyFloat: responseBody.FTendency.Translate(),
+			TTendencyFloat: responseBody.TTendency.Translate(),
+			CreateTime:     GetCurrentTime(),
+			UpdateTime:     GetCurrentTime(),
+			DataTime:       TimetoStr(data.TimeSet).Format("2006-01-02 15:04:05"),
+		}
+		if err = tx.Model(&AlgorithmResultA{}).Create(&algorithmResult).Error; err != nil {
+			tx.Rollback()
+			err = errors.New("算法执行成功，插入结果失败")
+			return
+		}
+		alerts := make([]Alert, 0)
+		aler := Alert{
+			DataUUID:  data.UUID,
+			PointUUID: data.PointUUID,
+			Location:  postBody.PointName,
+			Type:      "预警算法",
+			Strategy:  algorithm.Name,
+			TimeSet:   data.TimeSet,
+			Rpm:       data.Rpm,
+			Confirm:   1,
+			Source:    0,
+		}
+		var partType string
+		if err = tx.Table("point").Select("part.type").Joins("left join part on part.uuid = point.part_uuid").
+			Where("point.uuid", data.PointUUID).Find(&partType).Error; err != nil {
+			return
+		}
+		if algorithmResult.FScore > algorithmResult.FLevel1 && algorithmResult.FScore < algorithmResult.FLevel2 {
+			aler.Level = 2
+			aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(2, partType, "F", aler.Location)
+			alerts = append(alerts, aler)
+		}
+		if algorithmResult.FScore > algorithmResult.FLevel2 {
+			aler.Level = 3
+			aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(3, partType, "F", aler.Location)
+			alerts = append(alerts, aler)
+		}
+		if algorithmResult.TScore > algorithmResult.TLevel1 && algorithmResult.TScore < algorithmResult.TLevel2 {
+			aler.Level = 2
+			aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(2, partType, "T", aler.Location)
+			alerts = append(alerts, aler)
+		}
+		if algorithmResult.TScore > algorithmResult.TLevel2 {
+			aler.Level = 3
+			aler.Desc, aler.Suggest = GetDescAndSuggestByLevel(3, partType, "T", aler.Location)
+			alerts = append(alerts, aler)
+		}
+		if len(alerts) > 0 {
+			if err = tx.Model(&Alert{}).Create(&alerts).Error; err != nil {
+				tx.Rollback()
+				err = errors.New("算法执行成功，插入预警失败")
+				return
+			}
+		}
+		// 执行完成后需要修改 data的is_predicted
+		if err = tx.Table("data_"+fid).Where("id = ?", data.ID).Update("is_predicted", 1).Error; err != nil {
+			tx.Rollback()
+			err = errors.New("算法执行成功，更新数据失败")
+			return
+		}
+		// 更新算法的上次执行时间
+		if err = tx.Table("algorithm").Where("id = ?", algorithm.Id).Update("last_exec_time", GetCurrentTime()).Error; err != nil {
+			tx.Rollback()
+			err = errors.New("算法执行成功，更新算法执行时间失败")
+			return
+		}
+		// TODO 报警插入后更新日报警和月报警
+		if err = UpdateReportAfterAlert(tx, aler); err != nil {
+			tx.Rollback()
+			err = errors.New("日报警和月报警更新失败")
+			return err
+		}
+		tx.Commit()
+	}
+	return
+}
+
+var algorithmReqErr = map[string]error{
+	"1": errors.New("风场名错误"),
+	"2": errors.New("风机号错误"),
+	"3": errors.New("测点名错误"),
+	"4": errors.New("数据长度错误"),
+	"5": errors.New("采样频率错误"),
+	"6": errors.New("风速错误"),
+}
+
+func (algorithm *Algorithm) ExecuteAlgorithmB(db *gorm.DB, data *Data, fid string, postBody *AlgorithmReqBody) (err error) {
+	var responseBody AlgorithmRepBodyB
+	if _, err = resty.New().R().SetHeader("Content-Type", "application/json").SetBody(postBody).SetResult(&responseBody).Post(algorithm.Url); err != nil {
+		err = errors.New("算法请求发起失败")
+		return
+	} else {
+		if responseBody.Success == "False" {
+			err = errors.New("算法客户端运行异常")
+			return
+		}
+		if responseBody.Error != "0" {
+			err = algorithmReqErr[responseBody.Error]
+			return
+		}
+		algorithmResult := AlgorithmResultB{
+			DataDTO:    responseBody.Data.Translate(),
+			DataUUID:   data.UUID,
+			CreateTime: GetCurrentTime(),
+			UpdateTime: GetCurrentTime(),
+			DataTime:   TimetoStr(data.TimeSet).Format("2006-01-02 15:04:05"),
+		}
+		tx := db.Begin()
+		if err = tx.Model(&AlgorithmResultB{}).Create(&algorithmResult).Error; err != nil {
+			tx.Rollback()
+			err = errors.New("算法执行成功，插入结果失败")
+			return
+		}
+		type pointInfos struct {
+			PartType  string `gorm:"column:partType"`
+			PointName string `gorm:"column:pointName"`
+		}
+		var pointInfo pointInfos
+		if err = tx.Table("point").Select("part.type partType,point.name pointName").
+			Joins("left join part on part.uuid = point.part_uuid").Where("point.uuid", data.PointUUID).
+			Find(&pointInfo).Error; err != nil {
+			tx.Rollback()
+			err = errors.New("算法执行成功，处理报警信息错误")
+			return
+		}
+		if responseBody.Data.FaultName != "" {
+			aler := Alert{
+				DataUUID:  data.UUID,
+				PointUUID: data.PointUUID,
+				Location:  postBody.PointName,
+				Type:      "预警算法",
+				Strategy:  algorithm.Name,
+				Desc:      fmt.Sprintf("%s", pointInfo.PointName),
+				TimeSet:   data.TimeSet,
+				Rpm:       data.Rpm,
+				Suggest:   alertDescs[pointInfo.PartType].Suggest,
+				Confirm:   1,
+				Source:    0,
+			}
+			tag := CheckTagExist(tx, data.PointUUID, responseBody.Data.FaultName)
+			if err = tx.Table("alert").Create(&aler).Error; err != nil {
+				tx.Rollback()
+				err = errors.New("算法执行成功，插入预警失败")
+				return
+			}
+			if err = UpdateReportAfterAlert(tx, aler); err != nil {
+				tx.Rollback()
+				err = errors.New("算法执行成功，更新日报警和月报警失败")
+				return
+			}
+			if err = tx.Table("data_"+fid).Where("uuid = ?", data.UUID).Update("tag", fmt.Sprintf("%d-%d", tag.FaultTagFirstID, tag.Id)).Error; err != nil {
+				tx.Rollback()
+				err = errors.New("算法执行成功，更新数据tag失败")
+				return
+			}
+		}
+	}
+	return
+}
+
+type alertDesc struct {
+	Suggest string
+	Desc    string
+}
+
+var alertDescs = map[string]alertDesc{
+	"主轴承": {Suggest: "建议检查主轴振动和异响情况"},
+	"齿轮箱": {Suggest: "建议及时检查齿轮箱振动和异响情况"},
+	"发电机": {Suggest: "建议及时登机检查发电机振动和异响情况"},
 }

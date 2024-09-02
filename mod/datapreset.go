@@ -209,7 +209,6 @@ func ReadTXTfile(fileName string, file multipart.File, parsing Parsing) (info st
 func (dd *Data) DataInfoGet(db *gorm.DB, info string, filedata []byte, parsing Parsing) error {
 	var err error
 	var dataInfo DataInfo
-	fmt.Println(parsing.Separator)
 	// 实际info为数据格式，在文件中读取。
 	str := strings.Split(info, parsing.Separator)
 	if len(str) != parsing.Length {
@@ -381,7 +380,6 @@ func (data *Data) DataAnalysis_2(db *gorm.DB, ipport string, fid string) (err er
 		BV6:       data.BandValue6,
 	}
 	postBody, err := json.Marshal(postData)
-	fmt.Println(postBody)
 	if err != nil {
 		return err
 	}

@@ -265,6 +265,10 @@ func (plot *DatatoPlot) Plot(db *gorm.DB, tableprefix string, fid string, iid st
 	err = db.Table(dtable).Preload("Wave", func(db *gorm.DB) *gorm.DB {
 		return db.Table(rtable)
 	}).Last(&dd, iid).Error
+	if dd.IsPredicted {
+		db.Table("algorithm_result_a").Where("data_uuid = ?", dd.UUID).Find(&dd.ResultA)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -307,6 +311,22 @@ func (plot *DatatoPlot) Plot(db *gorm.DB, tableprefix string, fid string, iid st
 // ^ 趋势图绘图坐标
 // TODO: 限制点数.选择点的前后一年内10000条的历史数据
 func (plot *DatatoPlot) CPlot(db *gorm.DB, tableprefix string, fid string, iid string, ctype string) (err error) {
+	// 处理特定的 ctype 值
+	switch ctype {
+	case "meanfre":
+		ctype = "mean_fre"
+	case "squarefre":
+		ctype = "square_fre"
+	case "gravfre":
+		ctype = "grav_fre"
+	case "secgravfre":
+		ctype = "secgrav_fre"
+	case "gravratio":
+		ctype = "grav_ratio"
+	case "standdeviate":
+		ctype = "stand_deviate"
+	}
+
 	dtable := "data_" + tableprefix + fid
 	var data Data
 	db.Table(dtable).Where("id=?", iid).Select("point_uuid", "time_set", "measuredefine").First(&data)
@@ -356,6 +376,20 @@ func (plot *DatatoPlot) CPlot(db *gorm.DB, tableprefix string, fid string, iid s
 
 // TODO Debug
 func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
+	switch ctype {
+	case "meanfre":
+		ctype = "mean_fre"
+	case "squarefre":
+		ctype = "square_fre"
+	case "gravfre":
+		ctype = "grav_fre"
+	case "secgravfre":
+		ctype = "secgrav_fre"
+	case "gravratio":
+		ctype = "grav_ratio"
+	case "standdeviate":
+		ctype = "stand_deviate"
+	}
 	for k, v := range plot.Currentplot {
 		ppmwcid, pmwname, _, err := PointtoFactory(db, v.PointId)
 		if err != nil {
@@ -382,22 +416,50 @@ func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 			Where("time_set BETWEEN ? AND ?", stamp1.Unix(), stamp2.Unix()).
 			Where("rpm BETWEEN ? AND ?", v.Limit.MinRpm, v.Limit.MaxRpm).
 			Order("time_set")
-		err = db.Table("(?) as d", sub).Select("id", "time_set").Find(&tempd).Error
+		err = db.Table("(?) as d", sub).Select("id", "uuid", "time_set", "is_predicted").Find(&tempd).Error
 		if err != nil {
 			return err
 		}
 		var idgroup = make([]string, 0)
 		var rgroup = make([]float32, 0)
 		var tgroup = make([]string, 0)
+		as := make([]AlgorithmResultA, 0)
 		for _, v := range tempd {
+			var a AlgorithmResultA
+			if v.IsPredicted {
+				db.Table("algorithm_result_a").Where("data_uuid = ?", v.UUID).Find(&a)
+				as = append(as, a)
+			}
 			tgroup = append(tgroup, TimetoStr(v.TimeSet).Format("2006-01-02 15:04:05"))
 			idgroup = append(idgroup, fmt.Sprint(v.ID))
 			var tempr float32
-			err = db.Table("(?) as d", sub).Where("id=?", v.ID).Select(ctype).Scan(&tempr).Error
-			if err != nil {
-				return err
+			if ctype != "time" && ctype != "frequency" {
+				err = db.Table("(?) as d", sub).Where("id=?", v.ID).Select(ctype).Scan(&tempr).Error
+				if err != nil {
+					return err
+				}
 			}
 			rgroup = append(rgroup, tempr)
+		}
+		switch ctype {
+		case "time":
+			var res TimePlot
+			for _, value := range as {
+				res.TLev1 = value.TLevel1
+				res.TLev2 = value.TLevel2
+				res.TScore = append(res.TScore, value.TScore)
+				res.XAxis = append(res.XAxis, value.DataTime)
+			}
+			plot.Currentplot[k].ResultA.TimePlot = res
+		case "frequency":
+			var res FrequencyPlot
+			for _, value := range as {
+				res.FLev1 = value.FLevel1
+				res.FLev2 = value.FLevel2
+				res.FScore = append(res.FScore, value.FScore)
+				res.XAxis = append(res.XAxis, value.DataTime)
+			}
+			plot.Currentplot[k].ResultA.FrequencyPlot = res
 		}
 		plot.Currentplot[k].Xaxis = tgroup
 		plot.Currentplot[k].Yaxis = rgroup
@@ -407,7 +469,7 @@ func (plot *MultiDatatoPlot) Plot(db *gorm.DB, ctype string) (err error) {
 }
 
 // 最新一百条数据
-func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string) (err error) {
+func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string, startTimeSet, endTimeSet int64) (err error) {
 	// monthStart := time.Now().Format("2006-01")
 	// monthEnd := time.Now().AddDate(0, -2, 0).Format("2006-01")
 	if ctype == "" {
@@ -420,9 +482,13 @@ func (plot *MultiDatatoPlot) FanStaticPlot(db *gorm.DB, ctype string, fid string
 		var idgroup []string
 		//* 最近三个月的数据
 		sub := db.Table("data_"+fid).
-			Where("point_uuid=?", point.UUID).
-			Order("time_set desc").Limit(100)
-
+			Where("point_uuid = ?", point.UUID).
+			Order("time_set desc")
+		if startTimeSet != 0 && endTimeSet != 0 {
+			sub = sub.Where("time_set >= ? <= ?", startTimeSet, endTimeSet)
+		} else {
+			sub = sub.Limit(100)
+		}
 		err = db.Table("(?) as d", sub).Order("time_set").Select("id", "time_set", ctype).Find(&tempd).Error
 		if err != nil {
 			return err

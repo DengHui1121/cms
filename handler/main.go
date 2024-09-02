@@ -17,7 +17,7 @@ import (
 var (
 	config  = flag.String("dbconfig", "./GormConfig.toml", "数据库连接配置")
 	port    = flag.String("p", "3000", "服务端口")
-	dataurl = flag.String("dataurl", "localhost:3006", "数据服务占用端口")
+	dataurl = flag.String("dataurl", "localhost:3005", "数据服务占用端口")
 	DB      = db
 )
 
@@ -146,6 +146,8 @@ func Start() {
 		cmsbasic.PUT("algorithm", UpdateAlgorithmHandler)                   //更新算法
 		cmsbasic.GET("algorithm", GetAlgorithmListHandler)                  //获取算法
 		cmsbasic.GET("algorithm/point", GetAlgorithmListByPointUUIDHandler) //根据测点uuid获取可以使用的算法
+		cmsbasic.GET("algorithm/start", StartAlgorithmHandler)              //立即启动算法
+		cmsbasic.GET("algorithm/history/:id", GetHistoryByIdHandler)        // 获取算法运行记录
 
 		cmsbasic.GET("parsing", GetParsingHandler)           //获取解析方式
 		cmsbasic.POST("parsing", AddParsingHandler)          //新增解析方式
