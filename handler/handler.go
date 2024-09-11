@@ -1271,14 +1271,14 @@ func CheckMPointData(ipport string) echo.HandlerFunc {
 					}
 				}
 			}
-			tx.Commit()
+
 			//if err = algorithm.ExecuteAlgorithm(&pdata, db, fid); err != nil {
 			//	ErrCheck(c, returnData, err, "数据保存成功，执行预警算法过程时，执行算法异常")
 			//	return err
 			//}
 
 		}
-
+		tx.Commit()
 		ErrNil(c, returnData, false, "导入数据成功。")
 		return nil
 	}
@@ -1705,9 +1705,21 @@ func GetFanDataCurrentPlot(c echo.Context) error {
 	models := c.QueryParam("model") //算法模型
 	startTime := c.QueryParam("startTime")
 	endTime := c.QueryParam("endTime")
-	startTimeSet, _ := mod.StrtoTime("2006-01-02 15:04:05", startTime)
-	endTimeSet, _ := mod.StrtoTime("2006-01-02 15:04:05", endTime)
-	var m mod.MultiDatatoPlot
+	var startTimeSet, endTimeSet int64
+	if startTime != "" && endTime != "" {
+		startTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", startTime)
+		endTimeSet, _ = mod.StrtoTime("2006-01-02 15:04:05", endTime)
+	} else {
+		now := time.Now()
+		oneMonthAgo := now.AddDate(0, -1, 0).Unix()
+		startTimeSet = oneMonthAgo
+		endTimeSet = now.Unix()
+	}
+
+	m := mod.MultiDatatoPlot{
+		StartTime: mod.TimetoStrFormat("2006-01-02 15:04:05", startTimeSet),
+		EndTime:   mod.TimetoStrFormat("2006-01-02 15:04:05", endTimeSet),
+	}
 	m.Currentplot = make([]mod.CurrentPlot, 0)
 	//找测点和限制条件，填充m
 	db.Table("machine").
@@ -1768,8 +1780,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 	// 首先查询出所有数据
 	var algorithmResultA []mod.AlgorithmResultA
 	if err = db.Table("point").Select("a.*,data.time_set as timeSet").Joins(fmt.Sprintf("left join data_%d data on data.point_uuid = point.uuid", fanId)).
-		Joins("left join algorithm_result_a a on a.data_uuid = data.uuid").Where("point.id = ? and a.algorithm_id = ? AND data_time >= ? <= ?", pointId, algorithmId, startTime, endTime).
-		Find(&algorithmResultA).Error; err != nil {
+		Joins("left join algorithm_result_a a on a.data_uuid = data.uuid").Where("point.id = ? and a.algorithm_id = ? AND a.create_time >= ? AND a.create_time <= ?", pointId, algorithmId, startTime, endTime).
+		Order("data.time_set").Find(&algorithmResultA).Error; err != nil {
 		mainlog.Error("获取算法错误")
 		ErrCheck(c, returnData, err, "调取数据错误")
 		return err
@@ -1778,6 +1790,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 	if typeStr == "" {
 		// 直接返回所有画图结构体
 		var res mod.AlgorithmPlotA
+		res.StartTime = startTime
+		res.EndTime = endTime
 		if len(algorithmResultA) > 0 {
 			for _, value := range algorithmResultA {
 				res.TimePlot.TLev1 = value.TLevel1
@@ -1815,6 +1829,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 		switch typeStr {
 		case "time":
 			var res mod.TimePlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.TLev1 = value.TLevel1
@@ -1830,6 +1846,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "frequency":
 			var res mod.FrequencyPlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.FLev1 = value.FLevel1
@@ -1844,6 +1862,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "eigenvalue":
 			var res mod.EigenValuePlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.TypiFeature.MeanFre = append(res.TypiFeature.MeanFre, value.MeanFre)
@@ -1866,6 +1886,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "meanfre":
 			var res mod.MeanFrePlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.MeanFres = append(res.MeanFres, value.MeanFre)
@@ -1878,6 +1900,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "squarefre":
 			var res mod.SquareFrePlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.SquareFres = append(res.SquareFres, value.SquareFre)
@@ -1890,6 +1914,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "gravfre":
 			var res mod.GravFrePlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.GravFres = append(res.GravFres, value.GravFre)
@@ -1902,6 +1928,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "secgravfre":
 			var res mod.SecGravFrePlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.SecGravFres = append(res.SecGravFres, value.SecGravFre)
@@ -1914,6 +1942,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "gravratio":
 			var res mod.GravRatioPlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.GravRatios = append(res.GravRatios, value.GravRatio)
@@ -1926,6 +1956,8 @@ func GetFanDataCurrentAlgorithmPlotA(c echo.Context) (err error) {
 			ErrNil(c, returnData, res, "调取数据成功")
 		case "standdeviate":
 			var res mod.StandDeviatePlot
+			res.StartTime = startTime
+			res.EndTime = endTime
 			if len(algorithmResultA) > 0 {
 				for _, value := range algorithmResultA {
 					res.StandDeviates = append(res.StandDeviates, value.StandDeviate)
